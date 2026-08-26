@@ -1,0 +1,9 @@
+# 時間の記録。生データは端末に置いたままにして、集計だけを
+# 管理リポジトリ 30days-30apps の docs/logs/dayNN.md に書き写す。
+.claude/time/
+
+# 接続情報・APIキー。GitHub には絶対に上げない。
+# 中身の例は .env.example に、実物は各自の手元の .env に置く。
+.env
+.env.*
+!.env.example
