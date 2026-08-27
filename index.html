@@ -98,6 +98,7 @@ button{font-family:inherit;cursor:pointer}
 .chip{font-size:12.5px;padding:4px 9px;border-radius:999px;border:1px solid var(--line);color:var(--ink-2)}
 .chip.yes{background:var(--pitch-soft);border-color:transparent;color:var(--pitch);font-weight:700}
 .chip.no{background:var(--absent-soft);border-color:transparent;color:var(--absent)}
+.chip.loading{color:var(--ink-3);border-style:dashed}
 
 /* ---- 状態表示 ---- */
 .msg{padding:16px;border-radius:12px;font-size:14px;line-height:1.75}
@@ -213,7 +214,7 @@ button{font-family:inherit;cursor:pointer}
       const roster = rosterCache[ev.id];
       html += '<div class="roster">';
       if (!roster) {
-        html += '<span class="chip">読み込み中…</span>';
+        html += '<span class="chip loading">読み込み中…</span>';
       } else {
         for (const m of roster) {
           const cls = m.status === 'yes' ? 'yes' : m.status === 'no' ? 'no' : '';

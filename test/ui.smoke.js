@@ -116,8 +116,10 @@ function check(label, cond) {
 
     // --- 誰が来るか見える ---
     await again.getByRole('button', { name: '誰が来る？' }).click();
-    await again.waitForSelector('.roster .chip');
-    check('メンバー3人分の状況が見える', (await again.locator('.roster .chip').count()) === 3);
+    // 「読み込み中…」も .chip なので、実データが出るまで待つ
+    await again.waitForSelector('.roster .chip:not(.loading)');
+    check('メンバー3人分の状況が見える',
+      (await again.locator('.roster .chip:not(.loading)').count()) === 3);
 
     console.log('\n[管理画面に戻って確認]');
     await page.reload();

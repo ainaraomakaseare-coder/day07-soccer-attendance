@@ -14,3 +14,6 @@ config.local.js
 
 # npm
 node_modules/
+
+# 公開用に組み立てた出力。中身は元ファイルから作り直せる。
+dist/

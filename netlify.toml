@@ -1,0 +1,10 @@
+# Netlify に GitHub 経由でつなぐ場合の設定。
+#
+# Netlify の管理画面 Site settings → Environment variables に
+#   SUPABASE_URL / SUPABASE_ANON_KEY
+# を登録しておくと、公開のたびに build が読み取って config.local.js を作ります。
+# だから接続情報を GitHub に置く必要がありません。
+
+[build]
+  command = "npm run build"
+  publish = "dist"
