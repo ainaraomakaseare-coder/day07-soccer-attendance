@@ -50,12 +50,14 @@ for (const bad of NEVER) {
   }
 }
 
-// service_role キーが紛れていないか、中身も見る
+// 秘密の方のキーが紛れていないか、中身も見る（新旧どちらの呼び方も）
 for (const rel of shipped) {
   const text = fs.readFileSync(path.join(dist, rel), 'utf8');
-  if (text.includes('service_role')) {
-    console.error('危険：' + rel + ' に service_role が含まれています。中止しました。');
-    process.exit(1);
+  for (const bad of ['service_role', 'sb_secret_']) {
+    if (text.includes(bad)) {
+      console.error('危険：' + rel + ' に ' + bad + ' が含まれています。中止しました。');
+      process.exit(1);
+    }
   }
 }
 

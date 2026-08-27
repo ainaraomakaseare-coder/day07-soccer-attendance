@@ -55,10 +55,17 @@ if (missing.length) {
   process.exit(1);
 }
 
-if (key.includes('service_role')) {
+// 秘密の方のキーが指定されていたら止める。
+// Supabase には新旧2つの呼び方があるので、どちらも見る。
+//   旧: anon public（安全） / service_role（秘密）
+//   新: sb_publishable_…（安全） / sb_secret_…（秘密）
+if (key.includes('service_role') || key.startsWith('sb_secret_')) {
   console.error('');
-  console.error('service_role のキーが指定されています。これは使えません。');
-  console.error('anon public と書いてある方のキーに差し替えてください。');
+  console.error('秘密の方のキーが指定されています。これは使えません。');
+  console.error('ブラウザに配るので、必ず公開してよい方のキーにしてください。');
+  console.error('');
+  console.error('  使う   : anon public  または  sb_publishable_… で始まるもの');
+  console.error('  使わない: service_role  または  sb_secret_… で始まるもの');
   console.error('');
   process.exit(1);
 }
