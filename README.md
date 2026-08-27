@@ -94,8 +94,13 @@ copy .env.example .env
 
 ```
 SUPABASE_URL=https://xxxxxxxx.supabase.co
-SUPABASE_ANON_KEY=eyJhbGci...
+SUPABASE_ANON_KEY=sb_publishable_...
 ```
+
+> **URL の末尾に注意。** Supabase の Data API のページは URL を
+> `https://xxxxxxxx.supabase.co/rest/v1/` の形で表示します。
+> このアプリは `/rest/v1/...` を自分で付け足すので、**`/rest/v1/` は要りません**。
+> 付けたまま貼っても `npm run setup` が外してくれますが、そのとき一言表示されます。
 
 > **秘密の方のキー（`service_role` / `sb_secret_…`）は絶対に使わないでください。**あれは全ての安全装置を無視できるマスターキーです。このアプリでは一切使いません。間違えて書いた場合は次のステップで止まるようにしてあります。
 

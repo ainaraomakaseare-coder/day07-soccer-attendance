@@ -37,8 +37,24 @@ function readEnvFile(file) {
 }
 
 const fromFile = readEnvFile(envPath);
-const url = process.env.SUPABASE_URL || fromFile.SUPABASE_URL || '';
+const rawUrl = process.env.SUPABASE_URL || fromFile.SUPABASE_URL || '';
 const key = process.env.SUPABASE_ANON_KEY || fromFile.SUPABASE_ANON_KEY || '';
+
+// Supabase の管理画面（Data API のページ）は URL を
+//   https://xxxx.supabase.co/rest/v1/
+// の形で見せる。そのまま貼られることが多いので、末尾を落として揃える。
+// このアプリは /rest/v1/rpc/... を自分で付けるため、残っていると二重になる。
+function tidyUrl(u) {
+  let out = String(u).trim().replace(/\/+$/, '');
+  const cut = out.replace(/\/rest\/v1$/, '');
+  if (cut !== out) {
+    console.log('SUPABASE_URL の末尾にあった /rest/v1 を外しました。');
+    out = cut;
+  }
+  return out;
+}
+
+const url = tidyUrl(rawUrl);
 
 const missing = [];
 if (!url) missing.push('SUPABASE_URL');
@@ -66,6 +82,14 @@ if (key.includes('service_role') || key.startsWith('sb_secret_')) {
   console.error('');
   console.error('  使う   : anon public  または  sb_publishable_… で始まるもの');
   console.error('  使わない: service_role  または  sb_secret_… で始まるもの');
+  console.error('');
+  process.exit(1);
+}
+
+if (url && !/^https?:\/\//.test(url)) {
+  console.error('');
+  console.error('SUPABASE_URL が https:// で始まっていません: ' + url);
+  console.error('Supabase の Settings → Data API にある Project URL を貼ってください。');
   console.error('');
   process.exit(1);
 }
