@@ -280,7 +280,9 @@ begin
     raise exception 'ログインしてから招待リンクを開いてください' using errcode = '28000';
   end if;
 
-  select * into v_member from members where token = p_token and active;
+  -- for update で行を押さえる。押さえないと、同じ招待リンクを2人が同時に開いたとき
+  -- 双方が「まだ空いている」と判断して、後から書いた方が席を奪える。
+  select * into v_member from members where token = p_token and active for update;
   if not found then
     raise exception '招待リンクが正しくありません' using errcode = '28000';
   end if;
