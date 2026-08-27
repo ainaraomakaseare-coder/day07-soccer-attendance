@@ -11,9 +11,13 @@ const { execFileSync, spawn } = require('child_process');
 const path = require('path');
 const http = require('http');
 
+const fs = require('fs');
+
 const root = path.join(__dirname, '..');
 const DB = process.env.PGDATABASE || 'soccer';
 const PSQL = process.env.PSQL || 'psql';
+const FAKE = 'http://localhost:54321';
+const CONFIG = path.join(root, 'config.local.js');
 
 function have(cmd, args) {
   try { execFileSync(cmd, args, { stdio: 'ignore' }); return true; } catch (e) { return false; }
@@ -84,8 +88,32 @@ const alive = (port) => new Promise((res) => {
   r.on('timeout', () => { r.destroy(); res(false); });
 });
 
+// 画面のテストは Supabase の代役に向いていないと意味がない。
+// 本番の接続先が入ったままだと、原因の分かりにくいタイムアウトになる。
+// テストのあいだだけ差し替えて、終わったら必ず元に戻す。
+function useTestConfig() {
+  const before = fs.existsSync(CONFIG) ? fs.readFileSync(CONFIG, 'utf8') : null;
+  if (before && before.includes(FAKE)) return () => {};
+
+  if (before) console.log('  接続先を一時的に代役へ切り替えます（終了時に戻します）');
+  fs.writeFileSync(CONFIG, [
+    '// テスト実行中の一時ファイルです。終わったら元に戻ります。',
+    'window.APP_CONFIG = {',
+    '  SUPABASE_URL: ' + JSON.stringify(FAKE) + ',',
+    '  SUPABASE_ANON_KEY: "test-anon-key",',
+    '};',
+    '',
+  ].join('\n'));
+
+  return () => {
+    if (before === null) fs.rmSync(CONFIG, { force: true });
+    else fs.writeFileSync(CONFIG, before);
+  };
+}
+
 (async () => {
   const started = [];
+  const restoreConfig = useTestConfig();
   const need = [
     { port: 54321, script: 'test/fake-supabase.js', name: 'Supabase の代役' },
     { port: 8000, script: 'scripts/serve.js', name: '置き場サーバー' },
@@ -112,5 +140,6 @@ const alive = (port) => new Promise((res) => {
     process.exitCode = 1;
   } finally {
     for (const p of started) stop(p);
+    restoreConfig();
   }
 })();
