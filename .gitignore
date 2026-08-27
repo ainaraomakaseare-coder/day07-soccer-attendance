@@ -3,7 +3,14 @@
 .claude/time/
 
 # 接続情報・APIキー。GitHub には絶対に上げない。
-# 中身の例は .env.example に、実物は各自の手元の .env に置く。
+# 実物は手元の .env に置き、見本だけをコミットする。
 .env
 .env.*
 !.env.example
+
+# .env から npm run setup が作る、接続情報入りのファイル。
+# これも実物なので上げない。見本は config.example.js の方。
+config.local.js
+
+# npm
+node_modules/

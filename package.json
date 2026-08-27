@@ -1,0 +1,11 @@
+{
+  "name": "day07-soccer-attendance",
+  "version": "1.0.0",
+  "private": true,
+  "description": "サッカーチームの出欠管理（30日30アプリ DAY7）",
+  "scripts": {
+    "setup": "node scripts/setup-config.js",
+    "start": "node scripts/setup-config.js && node scripts/serve.js",
+    "test": "node test/rules.test.js"
+  }
+}
