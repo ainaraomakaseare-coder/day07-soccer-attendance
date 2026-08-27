@@ -67,6 +67,17 @@ if (!playwrightOk) {
   process.exit(0);
 }
 
+// 起動したサーバーを止める。Windows とそれ以外でやり方が違う。
+function stop(child) {
+  try {
+    if (process.platform === 'win32') {
+      execFileSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+    } else {
+      process.kill(-child.pid);
+    }
+  } catch (e) { /* すでに終了している */ }
+}
+
 const alive = (port) => new Promise((res) => {
   const r = http.get({ host: 'localhost', port, path: '/', timeout: 1200 }, () => res(true));
   r.on('error', () => res(false));
@@ -84,7 +95,7 @@ const alive = (port) => new Promise((res) => {
     if (await alive(n.port)) { console.log('  ' + n.name + ' は起動済み'); continue; }
     console.log('  ' + n.name + ' を起動します');
     const p = spawn(process.execPath, [path.join(root, n.script)],
-      { cwd: root, stdio: 'ignore', detached: true });
+      { cwd: root, stdio: 'ignore', detached: process.platform !== 'win32' });
     started.push(p);
     for (let i = 0; i < 25; i++) {
       await new Promise((r) => setTimeout(r, 200));
@@ -100,6 +111,6 @@ const alive = (port) => new Promise((res) => {
     console.error('  画面：不合格');
     process.exitCode = 1;
   } finally {
-    for (const p of started) { try { process.kill(-p.pid); } catch (e) { /* すでに終了 */ } }
+    for (const p of started) stop(p);
   }
 })();

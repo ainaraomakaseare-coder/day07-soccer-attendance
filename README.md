@@ -24,7 +24,18 @@ managerが予定をつくる  →  LINEで個人リンクを配る  →  各自�
 ## 用意するもの
 
 - Supabase のアカウント（無料）
-- Node.js
+- **Node.js** … [nodejs.org](https://nodejs.org/ja) から LTS 版を入れてください。
+  入れたあとは**ターミナル（コマンドプロンプト）を一度閉じて開き直します。**
+  開き直さないと `npm` が「認識されていません」と言われ続けます。
+
+入っているか確かめるには：
+
+```
+node -v
+npm -v
+```
+
+どちらもバージョン番号（`v22.x.x` のような文字）が出れば大丈夫です。
 
 費用は **0円** です。Supabase の無料枠（データベース500MB・通信5GB/月）に対して、30人×年間100予定でも1MBに届きません。
 
@@ -53,13 +64,24 @@ Supabase の **Project Settings → API** を開き、2つの値をコピーし�
 - **Project URL**
 - **anon public** と書いてある方のキー
 
-そして手元でこうします。
+そして手元でこうします。**見本から自分用のファイルを作ります。**
+
+Mac / Linux：
 
 ```bash
-cp .env.example .env      # 見本から自分用のファイルを作る
+cp .env.example .env
 ```
 
-`.env` を開いて、コピーした値を書きます。
+Windows（コマンドプロンプト）：
+
+```
+copy .env.example .env
+```
+
+> Windows には `cp` がありません。`copy` です。
+> また、コマンドの後ろに `# ...` のような説明を付けたまま貼り付けると失敗します。コマンドだけを貼ってください。
+
+`.env` を**メモ帳などで開いて**、コピーした値を書きます。
 
 ```
 SUPABASE_URL=https://xxxxxxxx.supabase.co
@@ -70,10 +92,28 @@ SUPABASE_ANON_KEY=eyJhbGci...
 
 ### 4. 起動する
 
-```bash
-npm run setup    # .env を読んで config.local.js を作る
-npm start        # http://localhost:8000 で開く
+Mac / Linux / Windows 共通です。
+
 ```
+npm start
+```
+
+`npm start` が `.env` を読み込んで起動まで済ませます（`npm run setup` は単体で確認したいとき用）。
+このアプリは追加のライブラリを使っていないので、`npm install` は要りません。
+
+うまくいくと、こう出ます。
+
+```
+config.local.js を作りました。
+  接続先: https://xxxxxxxx.supabase.co
+  キー  : eyJhbGci…（以降は伏せます）
+
+  出欠アプリを開きました
+  管理画面 : http://localhost:8000/admin.html#<管理用トークン>
+  メンバー : http://localhost:8000/#<個人トークン>
+```
+
+止めるときは `Ctrl+C` です。
 
 ブラウザで `http://localhost:8000/admin.html#<手順2でメモした管理トークン>` を開けば管理画面です。
 
@@ -134,7 +174,9 @@ psql -v ON_ERROR_STOP=1 -d <データベース> -f test/db.test.sql
 
 ### 画面の通し確認
 
-実ブラウザで、予定作成 → 回答 → **閉じて開き直しても残っていること** → 別端末から見ても残っていることまで通します。
+実ブラウザで、予定作成 → 回答 → **閉じて開き直しても残っていること** → 別端末から見ても残っていることまで通します。`npm test` がサーバーの起動と後片付けまでやります（Windows / Mac / Linux 共通）。
+
+個別に走らせたい場合：
 
 ```bash
 node test/fake-supabase.js &   # Supabase の代役（手元の PostgreSQL に繋ぐ）
@@ -154,9 +196,9 @@ node test/ui.smoke.js
 
 ### 公開してよいファイルだけを取り出す
 
-まず、これを実行します。
+まず、これを実行します（Windows も同じ）。
 
-```bash
+```
 npm run build
 ```
 
