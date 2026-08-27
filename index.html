@@ -314,7 +314,7 @@ button{font-family:inherit;cursor:pointer}
     h += '<span class="d-num">' + d.text + '</span>';
     h += '<span class="d-dow ' + d.cls + '">(' + d.dow + ')</span>';
     if (!isPast && d.rel) h += '<span class="d-rel">' + d.rel + '</span>';
-    h += '<span class="badge">' + (isMatch ? '試合' : '練習') + '</span>';
+    h += '<span class="badge ' + ev.kind + '">' + (isMatch ? '試合' : '練習') + '</span>';
     h += '</div>';
 
     h += '<div class="body">';

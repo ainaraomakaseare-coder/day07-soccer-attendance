@@ -6,116 +6,145 @@
 <title>出欠管理</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap">
 <style>
+/* メンバー画面と同じ約束で作る。色は意味にだけ使う。 */
 :root{
-  --bg:#F4F6F4; --card:#FFFFFF; --ink:#16211B; --ink-2:#5A6B61; --ink-3:#8B9A91;
-  --line:#DFE5E0; --pitch:#1E7A46; --pitch-lit:#259455; --pitch-soft:#E4F2EA;
-  --absent:#C2453B; --absent-soft:#FBE9E7; --warn:#8A6410; --warn-soft:#FBF1DA;
-  --shadow:0 1px 2px rgba(22,33,27,.06), 0 6px 16px rgba(22,33,27,.05);
-  --font:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
+  --bg:#F1F2F4; --card:#FFFFFF; --ink:#151A21; --ink-2:#59636F; --ink-3:#8C96A2; --line:#E3E6EA;
+  --go:#12783F; --go-soft:#E4F1E9;
+  --stop:#BE3B2F; --stop-soft:#FBEAE7;
+  --match:#16233A; --match-on:#FFFFFF;
+  --wait:#B08422; --wait-soft:#FAF1DC;
+  --shadow:0 1px 2px rgba(21,26,33,.05), 0 8px 20px rgba(21,26,33,.06);
+  --jp:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
+  --num:"Barlow Condensed","Zen Kaku Gothic New",system-ui,sans-serif;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --bg:#101613; --card:#18211C; --ink:#E9EFEA; --ink-2:#A3B3A9; --ink-3:#75857B;
-    --line:#26332B; --pitch:#3FA96B; --pitch-lit:#4CBE7C; --pitch-soft:#17301F;
-    --absent:#E4695C; --absent-soft:#331916; --warn:#D8B45C; --warn-soft:#2C2312;
-    --shadow:0 1px 2px rgba(0,0,0,.4), 0 6px 16px rgba(0,0,0,.3);
+    --bg:#0E1216; --card:#171C22; --ink:#E8ECF0; --ink-2:#9AA5B1; --ink-3:#6E7883; --line:#242B33;
+    --go:#41B270; --go-soft:#12291C; --stop:#E4695C; --stop-soft:#2E1815;
+    --match:#2B3A56; --match-on:#EDF2FA; --wait:#D8B45C; --wait-soft:#2B2313;
+    --shadow:0 1px 2px rgba(0,0,0,.5), 0 8px 20px rgba(0,0,0,.35);
   }
 }
 *{box-sizing:border-box}
 html,body{margin:0}
-body{background:var(--bg);color:var(--ink);font-family:var(--font);line-height:1.65;
+body{background:var(--bg);color:var(--ink);font-family:var(--jp);line-height:1.6;
   -webkit-text-size-adjust:100%;padding-bottom:env(safe-area-inset-bottom)}
 button{font-family:inherit;cursor:pointer}
-input,select,textarea{font-family:inherit;font-size:15px;color:var(--ink);background:var(--card);
-  border:1px solid var(--line);border-radius:9px;padding:9px 10px;width:100%}
-:focus-visible{outline:3px solid var(--pitch-lit);outline-offset:2px;border-radius:6px}
+input,select,textarea{font-family:inherit;font-size:15px;color:var(--ink);background:var(--bg);
+  border:1px solid var(--line);border-radius:9px;padding:10px 11px;width:100%}
+textarea{line-height:1.7}
+:focus-visible{outline:3px solid var(--go);outline-offset:2px;border-radius:8px}
 [hidden]{display:none !important}
 
-.wrap{max-width:680px;margin:0 auto;padding:16px 14px 60px}
+.wrap{max-width:680px;margin:0 auto;padding:14px 14px 56px}
 
-.head{display:flex;align-items:center;justify-content:space-between;gap:10px;
-  padding-bottom:12px;border-bottom:1px solid var(--line)}
-.title{font-size:19px;font-weight:900;margin:0}
-.title span{font-size:12px;font-weight:700;color:var(--pitch);background:var(--pitch-soft);
-  border-radius:5px;padding:2px 7px;margin-left:8px;vertical-align:2px;letter-spacing:.06em}
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;
+  padding:4px 2px 12px;border-bottom:2px solid var(--ink)}
+.title{font-size:20px;font-weight:900;margin:0;letter-spacing:.01em}
+.title span{font-size:11px;font-weight:700;color:var(--ink-3);letter-spacing:.16em;
+  margin-left:9px;vertical-align:3px}
 
 .tabs{display:flex;gap:6px;margin:14px 0 18px}
 .tabs button{flex:1;background:var(--card);border:1px solid var(--line);color:var(--ink-2);
-  border-radius:10px;padding:10px 4px;font-size:14px;font-weight:700;letter-spacing:.04em}
-.tabs button[aria-selected="true"]{background:var(--pitch);border-color:var(--pitch);color:#fff}
+  border-radius:10px;padding:11px 4px;font-size:14px;font-weight:700;letter-spacing:.06em}
+.tabs button[aria-selected="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
 
-.sect{font-size:12px;font-weight:700;color:var(--ink-3);letter-spacing:.12em;margin:24px 2px 9px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;
-  margin-bottom:11px;box-shadow:var(--shadow)}
+.sect{font-size:11px;font-weight:700;color:var(--ink-3);letter-spacing:.16em;margin:24px 2px 8px}
+.card{background:var(--card);border-radius:14px;margin-bottom:10px;box-shadow:var(--shadow);overflow:hidden}
+.card .pad{padding:14px}
 
-.grid{display:grid;gap:9px}
+.grid{display:grid;gap:10px}
 .grid.two{grid-template-columns:1fr 1fr}
-label.f{display:block;font-size:12px;font-weight:700;color:var(--ink-2);margin-bottom:4px;letter-spacing:.05em}
+label.f{display:block;font-size:11px;font-weight:700;color:var(--ink-3);
+  margin-bottom:5px;letter-spacing:.1em}
 
-.btn{border:none;border-radius:10px;padding:11px 16px;font-size:15px;font-weight:700;
-  background:var(--pitch);color:#fff;letter-spacing:.05em}
-.btn.ghost{background:var(--card);border:1px solid var(--line);color:var(--ink-2)}
-.btn.danger{background:var(--card);border:1px solid var(--absent);color:var(--absent)}
-.btn.sm{padding:6px 11px;font-size:13px;border-radius:8px}
-.btn:disabled{opacity:.5;cursor:default}
+.btn{border:none;border-radius:10px;padding:12px 17px;font-size:15px;font-weight:700;
+  background:var(--ink);color:var(--bg);letter-spacing:.06em}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink-2)}
+.btn.danger{background:transparent;border:1px solid var(--stop);color:var(--stop)}
+.btn.sm{padding:7px 12px;font-size:13px;border-radius:8px}
+.btn:disabled{opacity:.45;cursor:default}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 
-/* 予定 */
-.when{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.date{font-size:18px;font-weight:900;font-variant-numeric:tabular-nums}
-.date .dow{font-size:13px;margin-left:1px}
-.date.sat .dow{color:#2F7BC4}
-.date.sun .dow{color:var(--absent)}
-.badge{font-size:11px;font-weight:700;letter-spacing:.06em;padding:3px 8px;border-radius:999px}
-.badge.match{background:var(--pitch);color:#fff}
-.badge.practice{background:var(--pitch-soft);color:var(--pitch)}
-.meta{font-size:13px;color:var(--ink-2);margin:4px 0 0}
-.tally{display:flex;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--ink-2);
-  font-variant-numeric:tabular-nums;margin-top:8px}
-.tally b{font-size:18px;font-weight:900;color:var(--ink)}
-.tally .yes b{color:var(--pitch)}
-.nore{background:var(--warn-soft);color:var(--warn);border-radius:9px;padding:9px 11px;
-  font-size:13px;margin-top:9px;line-height:1.7}
+/* 予定：メンバー画面と同じ帯 */
+.band{display:flex;align-items:baseline;gap:9px;padding:11px 14px 9px;flex-wrap:wrap}
+.kind-match .band{background:var(--match);color:var(--match-on)}
+.kind-practice .band{border-bottom:1px solid var(--line)}
+.d-num{font-family:var(--num);font-size:27px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.d-dow{font-size:13px;font-weight:700;margin-left:-3px}
+.d-dow.sun{color:#E4695C}
+.d-dow.sat{color:#7FB2E8}
+.kind-practice .d-dow.sun{color:var(--stop)}
+.kind-practice .d-dow.sat{color:#2F7BC4}
+.badge{margin-left:auto;font-size:11px;font-weight:700;letter-spacing:.1em;padding:3px 9px;
+  border-radius:999px;align-self:center}
+.kind-match .badge{background:rgba(255,255,255,.16);color:var(--match-on)}
+.kind-practice .badge{background:var(--bg);color:var(--ink-2)}
+.meta{font-size:13.5px;color:var(--ink-2);margin:0 0 8px}
+.meta .t{font-family:var(--num);font-size:17px;font-weight:700;margin-right:7px;color:var(--ink);
+  font-variant-numeric:tabular-nums}
+
+.tally{display:flex;gap:13px;flex-wrap:wrap;font-size:12px;color:var(--ink-3);
+  font-weight:700;letter-spacing:.04em}
+.tally b{font-family:var(--num);font-size:19px;font-weight:700;color:var(--ink-2);margin-left:3px;
+  font-variant-numeric:tabular-nums}
+.tally .yes b{color:var(--go)}
+.tally .no b{color:var(--stop)}
+
+.nore{background:var(--wait-soft);color:var(--wait);border-radius:9px;padding:10px 12px;
+  font-size:13px;margin-top:10px;line-height:1.75}
 .nore b{font-weight:700}
 
-/* 代理入力の表 */
-.proxy{margin-top:11px;border-top:1px dashed var(--line);padding-top:10px}
-.prow{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)}
+/* 代理入力 */
+.proxy{margin-top:12px;border-top:1px solid var(--line);padding-top:8px}
+.prow{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)}
 .prow:last-child{border-bottom:none}
 .pname{flex:1;font-size:14px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pname i{font-style:normal;font-size:11.5px;color:var(--pitch);background:var(--pitch-soft);
-  border-radius:4px;padding:1px 5px;margin-right:6px}
+.pname i{font-family:var(--num);font-style:normal;font-size:14px;font-weight:700;
+  color:var(--ink-3);margin-right:7px}
 .pset{display:flex;gap:5px;flex:0 0 auto}
-.pset button{border:1px solid var(--line);background:var(--card);color:var(--ink-3);
-  border-radius:7px;padding:5px 11px;font-size:13px;font-weight:700}
-.pset button[aria-pressed="true"].yes{background:var(--pitch);border-color:var(--pitch);color:#fff}
-.pset button[aria-pressed="true"].no{background:var(--absent);border-color:var(--absent);color:#fff}
+.pset button{border:1px solid var(--line);background:transparent;color:var(--ink-3);
+  border-radius:7px;padding:6px 12px;font-size:13px;font-weight:700}
+.pset button[aria-pressed="true"].yes{background:var(--go);border-color:var(--go);color:#fff}
+.pset button[aria-pressed="true"].no{background:var(--stop);border-color:var(--stop);color:#fff}
 
 /* メンバー */
-.mrow{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.mrow{display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
 .mrow:last-child{border-bottom:none}
 .mrow.off{opacity:.5}
-.mrow .no{width:64px;flex:0 0 auto}
-.mrow .nm{flex:1;min-width:120px}
+.mrow .no{width:66px;flex:0 0 auto;text-align:center;font-family:var(--num);font-weight:700}
+.mrow .nm{flex:1;min-width:110px}
+
+.tag{font-size:10.5px;font-weight:700;letter-spacing:.08em;padding:3px 8px;border-radius:999px;
+  white-space:nowrap}
+.tag.on{background:var(--go-soft);color:var(--go)}
+.tag.off{background:var(--bg);color:var(--ink-3);border:1px solid var(--line)}
 
 /* リンク */
-.link{font-size:12px;color:var(--ink-3);word-break:break-all;background:var(--bg);
-  border-radius:7px;padding:7px 9px;margin-top:5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.link{font-size:11.5px;color:var(--ink-3);word-break:break-all;background:var(--bg);
+  border-radius:8px;padding:8px 10px;margin-top:7px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;line-height:1.55}
 
-.msg{padding:16px;border-radius:12px;font-size:14px;line-height:1.75}
-.msg.error{background:var(--absent-soft);color:var(--absent)}
-.msg.info{background:var(--card);border:1px solid var(--line);color:var(--ink-2)}
-.msg code{background:rgba(127,127,127,.14);padding:1px 5px;border-radius:4px;font-size:12.5px}
-.empty{text-align:center;color:var(--ink-3);font-size:14px;padding:24px 10px}
-.hint{font-size:12.5px;color:var(--ink-3);margin:6px 2px 0;line-height:1.7}
+.msg{background:var(--card);border-radius:12px;padding:18px;font-size:14px;line-height:1.8;
+  box-shadow:var(--shadow)}
+.msg.error{background:var(--stop-soft);color:var(--stop);box-shadow:none}
+.msg b{display:block;margin-bottom:4px}
+.msg code{background:rgba(127,127,127,.16);padding:1px 5px;border-radius:4px;font-size:12.5px}
+.empty{text-align:center;color:var(--ink-3);font-size:13.5px;padding:24px 10px}
+.hint{font-size:12.5px;color:var(--ink-3);margin:7px 2px 0;line-height:1.75}
+.warn{background:var(--stop-soft);color:var(--stop);border-radius:9px;padding:11px 12px;
+  font-size:12.5px;line-height:1.75;margin-top:10px}
 
-.toast{position:fixed;left:50%;bottom:22px;transform:translate(-50%,14px);background:var(--ink);
-  color:var(--bg);font-size:13.5px;font-weight:700;padding:10px 18px;border-radius:999px;
-  opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:20}
+.toast{position:fixed;left:50%;bottom:20px;transform:translate(-50%,14px);background:var(--ink);
+  color:var(--bg);font-size:13.5px;font-weight:700;padding:11px 20px;border-radius:999px;
+  opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:20;
+  max-width:88vw;text-align:center}
 .toast.show{opacity:1;transform:translate(-50%,0)}
-.toast.bad{background:var(--absent);color:#fff}
+.toast.bad{background:var(--stop);color:#fff}
+
+@media (prefers-reduced-motion: reduce){ *{transition:none !important} }
 </style>
 </head>
 <body>
@@ -162,13 +191,16 @@ label.f{display:block;font-size:12px;font-weight:700;color:var(--ink-2);margin-b
     toastTimer = setTimeout(() => { toastEl.className = 'toast'; }, bad ? 4500 : 1700);
   }
 
-  // 個人リンクの土台。公開先が決まったらここを書き換えて使う。
+  // 個人リンクの土台。公開先が決まったら「リンク配布」タブで設定する。
   const BASE_KEY = 'day07.linkBase';
   function linkBase() {
     return localStorage.getItem(BASE_KEY) ||
-           location.href.replace(/admin\.html.*$/, '').replace(/#.*$/, '');
+           location.href.replace(/admin\.html.*$/, '').replace(/[?#].*$/, '');
   }
-  const memberLink = (token) => linkBase().replace(/\/?$/, '/') + '#' + token;
+  // LINE の内蔵ブラウザは Google 認証を弾く（403: disallowed_useragent）。
+  // openExternalBrowser=1 を付けると、端末の既定ブラウザで開いてくれる。
+  const memberLink = (token) =>
+    linkBase().replace(/\/?$/, '/') + '?openExternalBrowser=1#' + token;
 
   async function call(fn, args) {
     if (busy) return null;
@@ -192,7 +224,7 @@ label.f{display:block;font-size:12px;font-weight:700;color:var(--ink-2);margin-b
     let h = '';
 
     h += '<div class="sect">予定を追加</div>';
-    h += '<div class="card"><div class="grid">';
+    h += '<div class="card"><div class="pad"><div class="grid">';
     h += '<div class="grid two">';
     h += '<div><label class="f" for="f-date">日付</label><input type="date" id="f-date" value="' + todayISO() + '"></div>';
     h += '<div><label class="f" for="f-time">開始時刻</label><input type="time" id="f-time"></div>';
@@ -204,7 +236,7 @@ label.f{display:block;font-size:12px;font-weight:700;color:var(--ink-2);margin-b
     h += '</div>';
     h += '<div><label class="f" for="f-note">メモ</label><input id="f-note" placeholder="対戦相手・持ち物など"></div>';
     h += '<div><button class="btn" data-act="add-event">この予定を追加</button></div>';
-    h += '</div></div>';
+    h += '</div></div></div>';
 
     const events = data.events || [];
     h += '<div class="sect">予定と出欠</div>';
@@ -220,19 +252,24 @@ label.f{display:block;font-size:12px;font-weight:700;color:var(--ink-2);margin-b
       const answers = ev.answers || {};
       const noReply = actives.filter((m) => !answers[m.id]);
 
-      h += '<div class="card">';
-      h += '<div class="when">';
-      h += '<span class="date ' + d.cls + '">' + d.text + '<span class="dow">(' + d.dow + ')</span></span>';
+      h += '<div class="card kind-' + ev.kind + '">';
+      h += '<div class="band">';
+      h += '<span class="d-num">' + d.text + '</span>';
+      h += '<span class="d-dow ' + d.cls + '">(' + d.dow + ')</span>';
       h += '<span class="badge ' + ev.kind + '">' + (ev.kind === 'match' ? '試合' : '練習') + '</span>';
-      if (ev.start_time) h += '<span class="meta" style="margin:0">' + esc(fmtTime(ev.start_time)) + '</span>';
       h += '</div>';
-      if (ev.place || ev.note) {
-        h += '<p class="meta">' + esc([ev.place, ev.note].filter(Boolean).join('　/　')) + '</p>';
+
+      h += '<div class="pad">';
+      if (ev.start_time || ev.place || ev.note) {
+        h += '<p class="meta">';
+        if (ev.start_time) h += '<span class="t">' + esc(fmtTime(ev.start_time)) + '</span>';
+        h += esc([ev.place, ev.note].filter(Boolean).join('　/　'));
+        h += '</p>';
       }
 
       h += '<div class="tally">';
       h += '<span class="yes">出席 <b>' + yes + '</b></span>';
-      h += '<span>欠席 <b>' + no + '</b></span>';
+      h += '<span class="no">欠席 <b>' + no + '</b></span>';
       h += '<span>未回答 <b>' + noReply.length + '</b></span>';
       h += '</div>';
 
@@ -241,7 +278,7 @@ label.f{display:block;font-size:12px;font-weight:700;color:var(--ink-2);margin-b
              noReply.map((m) => esc(m.name)).join('、') + '</div>';
       }
 
-      h += '<div class="row" style="margin-top:10px">';
+      h += '<div class="row" style="margin-top:12px">';
       h += '<button class="btn ghost sm" data-act="proxy" data-ev="' + ev.id + '">' +
            (openEvent === ev.id ? '閉じる' : '代理入力・修正') + '</button>';
       h += '<button class="btn danger sm" data-act="del-event" data-ev="' + ev.id + '">削除</button>';
@@ -264,7 +301,7 @@ label.f{display:block;font-size:12px;font-weight:700;color:var(--ink-2);margin-b
         h += '</div>';
       }
 
-      h += '</div>';
+      h += '</div></div>';
     }
     return h;
   }
@@ -273,69 +310,92 @@ label.f{display:block;font-size:12px;font-weight:700;color:var(--ink-2);margin-b
   function membersTab() {
     let h = '';
     h += '<div class="sect">名簿をまとめて登録</div>';
-    h += '<div class="card">';
+    h += '<div class="card"><div class="pad">';
     h += '<label class="f" for="f-bulk">名前を1行に1人ずつ（スプレッドシートの列をそのまま貼れます）</label>';
     h += '<textarea id="f-bulk" rows="6" placeholder="山田 太郎&#10;佐藤 次郎&#10;鈴木 三郎"></textarea>';
     h += '<p class="hint">すでに同じ名前がいる人は飛ばします。背番号はあとから付けられます。</p>';
-    h += '<div style="margin-top:10px"><button class="btn" data-act="add-members">まとめて登録</button></div>';
-    h += '</div>';
+    h += '<div style="margin-top:12px"><button class="btn" data-act="add-members">まとめて登録</button></div>';
+    h += '</div></div>';
 
     const members = data.members || [];
-    h += '<div class="sect">メンバー（' + members.filter((m) => m.active).length + '人）</div>';
+    const linked = members.filter((m) => m.active && m.linked).length;
+    const activeN = members.filter((m) => m.active).length;
+
+    h += '<div class="sect">メンバー（' + activeN + '人・ログイン済み ' + linked + '人）</div>';
     if (!members.length) {
       h += '<p class="empty">まだ登録されていません。</p>';
       return h;
     }
 
-    h += '<div class="card">';
+    h += '<div class="card"><div class="pad">';
     for (const m of members) {
       h += '<div class="mrow' + (m.active ? '' : ' off') + '">';
       h += '<input class="no" value="' + esc(m.number || '') + '" placeholder="番号" data-fld="number" data-m="' + m.id + '">';
       h += '<input class="nm" value="' + esc(m.name) + '" data-fld="name" data-m="' + m.id + '">';
+      h += '<span class="tag ' + (m.linked ? 'on' : 'off') + '">' +
+           (m.linked ? 'ログイン済み' : '未ログイン') + '</span>';
       h += '<button class="btn ghost sm" data-act="save-member" data-m="' + m.id + '">保存</button>';
       h += '<button class="btn ghost sm" data-act="toggle-member" data-m="' + m.id + '" data-v="' +
            (m.active ? 'off' : 'on') + '">' + (m.active ? '休会' : '復帰') + '</button>';
       h += '</div>';
     }
-    h += '</div>';
-    h += '<p class="hint">休会にすると出欠の集計から外れます。過去の記録は残ります。</p>';
+    h += '</div></div>';
+    h += '<p class="hint">休会にすると出欠の集計から外れます。過去の記録は残ります。<br>' +
+         '「ログイン済み」の人は、招待リンクを無くしても自分の画面を開けます。' +
+         'その人の古い招待リンクは、もう誰にも使えません。</p>';
     return h;
   }
 
   // ================= リンクタブ =================
   function linksTab() {
     let h = '';
-    h += '<div class="sect">リンクの土台</div>';
-    h += '<div class="card">';
-    h += '<label class="f" for="f-base">公開先のURL</label>';
+    h += '<div class="sect">公開先のURL</div>';
+    h += '<div class="card"><div class="pad">';
+    h += '<label class="f" for="f-base">インターネット上の住所</label>';
     h += '<input id="f-base" value="' + esc(linkBase()) + '" placeholder="https://example.com/">';
-    h += '<p class="hint">インターネットに公開したら、その住所をここに入れてください。' +
-         '下の個人リンクがその住所で作られるようになります。（この設定はこの端末にだけ残ります）</p>';
-    h += '<div style="margin-top:10px"><button class="btn ghost" data-act="save-base">保存</button></div>';
-    h += '</div>';
+    h += '<p class="hint">公開したら、その住所をここに入れてください。下の招待リンクがその住所で作られます。' +
+         '（この設定はこの端末にだけ残ります）</p>';
+    h += '<div style="margin-top:12px"><button class="btn ghost" data-act="save-base">保存</button></div>';
+    h += '</div></div>';
 
     const actives = (data.members || []).filter((m) => m.active);
-    h += '<div class="sect">LINEに貼る文面</div>';
-    h += '<div class="card">';
-    h += '<p class="hint" style="margin-top:0">全員分をまとめてコピーして、チームのLINEに貼ってください。' +
-         '各自が自分の名前のリンクをタップすると出欠を登録できます。</p>';
-    h += '<div style="margin-top:10px"><button class="btn" data-act="copy-all">全員分をコピー</button></div>';
-    h += '</div>';
+    const yet = actives.filter((m) => !m.linked);
 
-    h += '<div class="sect">個人リンク（' + actives.length + '人）</div>';
+    h += '<div class="sect">LINEに貼る文面</div>';
+    h += '<div class="card"><div class="pad">';
+    h += '<p class="hint" style="margin-top:0">まだログインしていない ' + yet.length + ' 人分をまとめてコピーします。' +
+         '各自が自分の名前のリンクを開いてログインすると、次からリンクは要らなくなります。</p>';
+    h += '<div style="margin-top:12px"><button class="btn" data-act="copy-all">' +
+         (yet.length ? '未ログインの' + yet.length + '人分をコピー' : '全員ログイン済み') + '</button></div>';
+    h += '</div></div>';
+
+    h += '<div class="sect">招待リンク（' + actives.length + '人）</div>';
     if (!actives.length) {
       h += '<p class="empty">メンバーを登録するとここにリンクが出ます。</p>';
-      return h;
+    } else {
+      for (const m of actives) {
+        h += '<div class="card"><div class="pad">';
+        h += '<div class="row"><b style="flex:1">' + esc(m.name) + '</b>';
+        h += '<span class="tag ' + (m.linked ? 'on' : 'off') + '">' +
+             (m.linked ? 'ログイン済み' : '未ログイン') + '</span>';
+        h += '<button class="btn ghost sm" data-act="copy-one" data-t="' + esc(m.token) + '">コピー</button>';
+        h += '<button class="btn danger sm" data-act="reissue" data-m="' + m.id + '">作り直す</button></div>';
+        h += '<div class="link">' + esc(memberLink(m.token)) + '</div>';
+        h += '</div></div>';
+      }
+      h += '<p class="hint">リンクが外に漏れたときは「作り直す」を押してください。' +
+           '古いリンクはその場で使えなくなります。</p>';
     }
-    for (const m of actives) {
-      h += '<div class="card">';
-      h += '<div class="row"><b style="flex:1">' + esc(m.name) + '</b>';
-      h += '<button class="btn ghost sm" data-act="copy-one" data-t="' + esc(m.token) + '">コピー</button>';
-      h += '<button class="btn danger sm" data-act="reissue" data-m="' + m.id + '">作り直す</button></div>';
-      h += '<div class="link">' + esc(memberLink(m.token)) + '</div>';
-      h += '</div>';
-    }
-    h += '<p class="hint">リンクが外に漏れたときは「作り直す」を押してください。古いリンクはその場で使えなくなります。</p>';
+
+    h += '<div class="sect">管理リンク</div>';
+    h += '<div class="card"><div class="pad">';
+    h += '<p class="hint" style="margin-top:0">いまあなたが開いているこのページのURLが、管理リンクです。' +
+         '人に見せないでください。</p>';
+    h += '<div class="warn">誰かに見られたかもしれないときは、下のボタンで作り直してください。' +
+         '<b>古い管理リンクはその場で使えなくなります。</b>新しいURLはこのページのアドレス欄に入るので、' +
+         'ブックマークを取り直してください。</div>';
+    h += '<div style="margin-top:12px"><button class="btn danger" data-act="reissue-admin">管理リンクを作り直す</button></div>';
+    h += '</div></div>';
     return h;
   }
 
@@ -423,7 +483,7 @@ label.f{display:block;font-size:12px;font-weight:700;color:var(--ink-2);margin-b
       const names = box.value.split('\n').map((s) => s.trim()).filter(Boolean);
       if (!names.length) { toast('名前を入力してください', true); return; }
       const res = await call('admin_add_members', { p_names: names });
-      if (res) { box.value = ''; toast(res.added + '人を登録しました'); }
+      if (res) { toast(res.added + '人を登録しました'); }
       return;
     }
 
@@ -445,9 +505,25 @@ label.f{display:block;font-size:12px;font-weight:700;color:var(--ink-2);margin-b
     }
 
     if (act === 'reissue') {
-      if (!confirm('この人のリンクを作り直します。今までのリンクは使えなくなります。よろしいですか？')) return;
+      if (!confirm('この人の招待リンクを作り直します。今までのリンクは使えなくなります。よろしいですか？')) return;
       await call('admin_reissue_token', { p_member_id: btn.dataset.m });
       toast('作り直しました。新しいリンクを渡してください');
+      return;
+    }
+
+    // 管理リンクそのものの作り直し。返ってくる新トークンで、開いているURLも差し替える。
+    if (act === 'reissue-admin') {
+      if (!confirm('管理リンクを作り直します。\n\n今のURLは使えなくなります。\n新しいURLはこのページのアドレス欄に入ります。よろしいですか？')) return;
+      try {
+        const res = await DB.rpc('admin_reissue_admin_token', { p_admin: admin });
+        admin = res.admin_token;
+        history.replaceState(null, '', location.pathname + '#' + admin);
+        data = await DB.rpc('admin_home', { p_admin: admin });
+        render();
+        toast('作り直しました。いまのURLをブックマークし直してください');
+      } catch (err) {
+        toast(err.message, true);
+      }
       return;
     }
 
@@ -472,26 +548,28 @@ label.f{display:block;font-size:12px;font-weight:700;color:var(--ink-2);margin-b
     }
 
     if (act === 'copy-all') {
-      const actives = (data.members || []).filter((m) => m.active);
-      if (!actives.length) { toast('メンバーがいません', true); return; }
-      const body = ['【出欠の登録おねがいします】', '自分の名前のリンクから登録してください。', '']
-        .concat(actives.map((m) => m.name + '\n' + memberLink(m.token)))
+      const yet = (data.members || []).filter((m) => m.active && !m.linked);
+      if (!yet.length) { toast('全員ログイン済みです', true); return; }
+      const body = ['【出欠の登録おねがいします】',
+                    '自分の名前のリンクを開いて、Googleでログインしてください。',
+                    '一度ログインすれば、次からはリンクを探さなくて済みます。', '']
+        .concat(yet.map((m) => m.name + '\n' + memberLink(m.token)))
         .join('\n');
-      copyText(body, '全員分をコピーしました');
+      copyText(body, yet.length + '人分をコピーしました');
       return;
     }
   });
 
   async function start() {
     if (window.__noConfig || !DB.ready()) {
-      app.innerHTML = '<div class="msg info"><b>まだ接続先が設定されていません。</b><br>' +
+      app.innerHTML = '<div class="msg"><b>まだ接続先が設定されていません。</b>' +
         '<code>cp .env.example .env</code> で .env を作り、Supabase の Project URL と anon キーを書いてから ' +
         '<code>npm run setup</code> を実行してください。</div>';
       return;
     }
     admin = (location.hash || '').replace(/^#\/?a?\/?/, '').trim();
     if (!admin) {
-      app.innerHTML = '<div class="msg info"><b>管理用トークンが必要です。</b><br>' +
+      app.innerHTML = '<div class="msg"><b>管理用トークンが必要です。</b>' +
         'Supabase で <code>db/schema.sql</code> を実行したときに表示された文字列を、' +
         'このページのURLの末尾に <code>#</code> を付けて貼ってください。</div>';
       return;
@@ -500,7 +578,7 @@ label.f{display:block;font-size:12px;font-weight:700;color:var(--ink-2);margin-b
       data = await DB.rpc('admin_home', { p_admin: admin });
       render();
     } catch (e) {
-      app.innerHTML = '<div class="msg error"><b>開けませんでした。</b><br>' + esc(e.message) + '</div>';
+      app.innerHTML = '<div class="msg error"><b>開けませんでした。</b>' + esc(e.message) + '</div>';
     }
   }
 
