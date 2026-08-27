@@ -15,11 +15,20 @@
       return Boolean(cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY);
     },
 
-    async rpc(fn, args) {
+    // useAuth を true にすると、anon キーではなく「ログインしている本人」として呼びます。
+    // 関数の中の auth.uid() が誰かを判別できるのは、このヘッダがあるからです。
+    async rpc(fn, args, useAuth) {
       if (!this.ready()) {
         throw new Error(
           '接続情報が設定されていません。.env を用意して npm run setup を実行してください。'
         );
+      }
+
+      let bearer = cfg.SUPABASE_ANON_KEY;
+      if (useAuth && window.Auth) {
+        const t = await window.Auth.token();
+        if (!t) throw new Error('ログインの有効期限が切れました。もう一度ログインしてください。');
+        bearer = t;
       }
 
       let res;
@@ -28,7 +37,7 @@
           method: 'POST',
           headers: {
             apikey: cfg.SUPABASE_ANON_KEY,
-            Authorization: 'Bearer ' + cfg.SUPABASE_ANON_KEY,
+            Authorization: 'Bearer ' + bearer,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(args || {}),

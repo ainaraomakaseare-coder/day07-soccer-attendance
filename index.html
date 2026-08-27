@@ -6,115 +6,198 @@
 <title>出欠登録</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap">
 <style>
+/* ------------------------------------------------------------------
+   色は「意味」にだけ使う。
+   緑＝出席、赤＝欠席、濃紺＝試合。それ以外は無彩色に寄せている。
+   芝の緑で画面全体を塗ると、出席の緑が埋もれて意味を失うため。
+   ------------------------------------------------------------------ */
 :root{
-  --bg:#F4F6F4;
+  --bg:#F1F2F4;
   --card:#FFFFFF;
-  --ink:#16211B;
-  --ink-2:#5A6B61;
-  --ink-3:#8B9A91;
-  --line:#DFE5E0;
-  --pitch:#1E7A46;
-  --pitch-lit:#259455;
-  --pitch-soft:#E4F2EA;
-  --absent:#C2453B;
-  --absent-soft:#FBE9E7;
-  --shadow:0 1px 2px rgba(22,33,27,.06), 0 6px 16px rgba(22,33,27,.05);
-  --font:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
+  --ink:#151A21;
+  --ink-2:#59636F;
+  --ink-3:#8C96A2;
+  --line:#E3E6EA;
+
+  --go:#12783F;        --go-soft:#E4F1E9;
+  --stop:#BE3B2F;      --stop-soft:#FBEAE7;
+  --match:#16233A;     --match-on:#FFFFFF;
+  --wait:#B08422;      --wait-soft:#FAF1DC;
+
+  --shadow:0 1px 2px rgba(21,26,33,.05), 0 8px 20px rgba(21,26,33,.06);
+  --jp:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
+  --num:"Barlow Condensed","Zen Kaku Gothic New",system-ui,sans-serif;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --bg:#101613; --card:#18211C; --ink:#E9EFEA; --ink-2:#A3B3A9; --ink-3:#75857B;
-    --line:#26332B; --pitch:#3FA96B; --pitch-lit:#4CBE7C; --pitch-soft:#17301F;
-    --absent:#E4695C; --absent-soft:#331916;
-    --shadow:0 1px 2px rgba(0,0,0,.4), 0 6px 16px rgba(0,0,0,.3);
+    --bg:#0E1216; --card:#171C22; --ink:#E8ECF0; --ink-2:#9AA5B1; --ink-3:#6E7883;
+    --line:#242B33;
+    --go:#41B270;  --go-soft:#12291C;
+    --stop:#E4695C; --stop-soft:#2E1815;
+    --match:#2B3A56; --match-on:#EDF2FA;
+    --wait:#D8B45C; --wait-soft:#2B2313;
+    --shadow:0 1px 2px rgba(0,0,0,.5), 0 8px 20px rgba(0,0,0,.35);
   }
 }
 *{box-sizing:border-box}
 html,body{margin:0}
 body{
-  background:var(--bg); color:var(--ink); font-family:var(--font);
-  line-height:1.65; -webkit-text-size-adjust:100%;
+  background:var(--bg); color:var(--ink); font-family:var(--jp);
+  line-height:1.6; -webkit-text-size-adjust:100%;
   padding-bottom:env(safe-area-inset-bottom);
 }
 button{font-family:inherit;cursor:pointer}
-:focus-visible{outline:3px solid var(--pitch-lit);outline-offset:2px;border-radius:6px}
+:focus-visible{outline:3px solid var(--go);outline-offset:2px;border-radius:8px}
 [hidden]{display:none !important}
 
-.wrap{max-width:520px;margin:0 auto;padding:16px 14px 48px}
-
-/* ---- ヘッダー ---- */
-.head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
-  padding:6px 2px 14px;border-bottom:1px solid var(--line);margin-bottom:16px;flex-wrap:wrap}
-.team{font-size:13px;color:var(--ink-2);letter-spacing:.04em;font-weight:500}
-.me{font-size:20px;font-weight:900;letter-spacing:.02em}
-.me .num{font-size:13px;font-weight:700;color:var(--pitch);
-  background:var(--pitch-soft);border-radius:5px;padding:2px 7px;margin-right:7px;vertical-align:2px}
+.wrap{max-width:520px;margin:0 auto;padding:14px 14px 44px}
 
 /* ---- 見出し ---- */
-.sect{font-size:12px;font-weight:700;color:var(--ink-3);letter-spacing:.12em;
-  margin:22px 2px 9px}
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;
+  padding:4px 2px 12px;margin-bottom:6px;border-bottom:2px solid var(--ink)}
+.team{font-size:12px;color:var(--ink-2);letter-spacing:.14em;font-weight:700}
+.me{font-size:21px;font-weight:900;letter-spacing:.01em;display:flex;align-items:center;gap:8px}
+.me .num{font-family:var(--num);font-size:20px;font-weight:700;line-height:1;
+  color:var(--ink);border:2px solid var(--ink);border-radius:6px;padding:3px 7px 2px;
+  font-variant-numeric:tabular-nums}
+
+.sect{font-size:11px;font-weight:700;color:var(--ink-3);letter-spacing:.16em;
+  margin:22px 2px 8px}
 
 /* ---- 予定カード ---- */
-.card{background:var(--card);border:1px solid var(--line);border-radius:14px;
-  padding:14px 14px 12px;margin-bottom:11px;box-shadow:var(--shadow)}
-.card.done{border-color:transparent;box-shadow:none;opacity:.72}
+.card{background:var(--card);border-radius:14px;margin-bottom:10px;
+  box-shadow:var(--shadow);overflow:hidden}
 
-.when{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px}
-.date{font-size:19px;font-weight:900;letter-spacing:.01em;font-variant-numeric:tabular-nums}
-.date .dow{font-size:14px;margin-left:1px}
-.date.sat .dow{color:#2F7BC4}
-.date.sun .dow{color:var(--absent)}
-.badge{font-size:11px;font-weight:700;letter-spacing:.06em;padding:3px 8px;border-radius:999px}
-.badge.match{background:var(--pitch);color:#fff}
-.badge.practice{background:var(--pitch-soft);color:var(--pitch)}
-.time{font-size:14px;font-weight:700;color:var(--ink-2);font-variant-numeric:tabular-nums}
-.where{font-size:13px;color:var(--ink-2);margin:0 0 2px}
-.note{font-size:13px;color:var(--ink-3);margin:0}
+/* 上端の帯。試合は濃紺で塗り、練習は静かに。重さの差がそのまま優先度になる */
+.band{display:flex;align-items:baseline;gap:9px;padding:11px 14px 9px;flex-wrap:wrap}
+.kind-match .band{background:var(--match);color:var(--match-on)}
+.kind-practice .band{border-bottom:1px solid var(--line)}
+
+.d-num{font-family:var(--num);font-size:30px;font-weight:700;line-height:1;
+  letter-spacing:.01em;font-variant-numeric:tabular-nums}
+.d-dow{font-size:13px;font-weight:700;margin-left:-3px}
+.d-dow.sun{color:#E4695C}
+.d-dow.sat{color:#7FB2E8}
+.kind-practice .d-dow.sun{color:var(--stop)}
+.kind-practice .d-dow.sat{color:#2F7BC4}
+.d-rel{font-size:12px;font-weight:700;letter-spacing:.06em;opacity:.72;margin-left:2px}
+.badge{margin-left:auto;font-size:11px;font-weight:700;letter-spacing:.1em;
+  padding:3px 9px;border-radius:999px;align-self:center}
+.kind-match .badge{background:rgba(255,255,255,.16);color:var(--match-on)}
+.kind-practice .badge{background:var(--bg);color:var(--ink-2)}
+
+.body{padding:12px 14px 13px}
+.where{font-size:14px;font-weight:500;color:var(--ink);margin:0 0 2px}
+.where .t{font-family:var(--num);font-size:17px;font-weight:700;margin-right:7px;
+  font-variant-numeric:tabular-nums}
+.note{font-size:13px;color:var(--ink-2);margin:2px 0 0}
 
 /* ---- 出欠ボタン ---- */
-.pick{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:12px 0 10px}
+.ask{font-size:12px;font-weight:700;color:var(--wait);background:var(--wait-soft);
+  border-radius:7px;padding:5px 10px;margin:12px 0 8px;display:inline-block;letter-spacing:.04em}
+.pick{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 12px}
 .pick button{
-  border:2px solid var(--line);background:var(--card);color:var(--ink-2);
-  border-radius:11px;padding:13px 6px;font-size:16px;font-weight:700;letter-spacing:.06em;
+  border:2px solid var(--line);background:transparent;color:var(--ink-2);
+  border-radius:10px;padding:14px 6px;font-size:16px;font-weight:700;letter-spacing:.1em;
   transition:transform .08s ease;
 }
 .pick button:active{transform:scale(.97)}
-.pick button[aria-pressed="true"].yes{background:var(--pitch);border-color:var(--pitch);color:#fff}
-.pick button[aria-pressed="true"].no{background:var(--absent);border-color:var(--absent);color:#fff}
-.pick button:disabled{opacity:.5;cursor:default}
+.pick button[aria-pressed="true"].yes{background:var(--go);border-color:var(--go);color:#fff}
+.pick button[aria-pressed="true"].no{background:var(--stop);border-color:var(--stop);color:#fff}
+.pick button:disabled{opacity:.45;cursor:default}
+.card.done .pick{display:none}
 
-.tally{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
-  font-size:13px;color:var(--ink-2);font-variant-numeric:tabular-nums}
-.tally b{font-size:17px;font-weight:900;color:var(--ink)}
-.tally .yes b{color:var(--pitch)}
-.tally .waiting{color:var(--ink-3)}
-.who{margin-left:auto;background:none;border:none;color:var(--pitch);
-  font-size:13px;font-weight:700;padding:4px 2px;text-decoration:underline;text-underline-offset:3px}
+/* 先頭の1件だけ大きく。残りは同じ作りのまま縮める */
+.card.hero .band{padding:14px 16px 11px}
+.card.hero .d-num{font-size:40px}
+.card.hero .d-dow{font-size:15px}
+.card.hero .body{padding:14px 16px 15px}
+.card.hero .where{font-size:15px}
+.card.hero .where .t{font-size:19px}
 
-.roster{margin:11px 0 0;padding:11px 0 0;border-top:1px dashed var(--line);
+/* ---- 11人ゲージ：この画面の主役 ----
+   「出席9人」より「あと2人」の方が、チームにとっては意味がある。
+   試合のときだけ出す。練習では11人を揃える必要がないため。 */
+.gauge{margin:2px 0 12px}
+.gauge-bar{height:7px;border-radius:99px;background:var(--line);overflow:hidden;display:flex}
+.gauge-bar span{background:var(--go);border-radius:99px}
+.gauge-txt{font-size:13px;color:var(--ink-2);margin:6px 0 0;letter-spacing:.02em}
+.gauge-txt b{font-family:var(--num);font-size:19px;font-weight:700;color:var(--ink);
+  margin:0 2px;font-variant-numeric:tabular-nums}
+.gauge-txt.full{color:var(--go);font-weight:700}
+.gauge-txt.full b{color:var(--go)}
+
+/* ---- 集計 ---- */
+.tally{display:flex;align-items:center;gap:13px;flex-wrap:wrap;
+  font-size:12px;color:var(--ink-3);font-weight:700;letter-spacing:.04em}
+.tally b{font-family:var(--num);font-size:19px;font-weight:700;color:var(--ink-2);
+  margin-left:3px;font-variant-numeric:tabular-nums}
+.tally .yes b{color:var(--go)}
+.tally .no b{color:var(--stop)}
+.who{margin-left:auto;background:none;border:none;color:var(--ink-2);
+  font-size:12px;font-weight:700;padding:5px 0;letter-spacing:.04em;
+  text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:1.5px}
+
+.roster{margin:12px 0 0;padding:12px 0 0;border-top:1px solid var(--line);
   display:flex;flex-wrap:wrap;gap:6px}
-.chip{font-size:12.5px;padding:4px 9px;border-radius:999px;border:1px solid var(--line);color:var(--ink-2)}
-.chip.yes{background:var(--pitch-soft);border-color:transparent;color:var(--pitch);font-weight:700}
-.chip.no{background:var(--absent-soft);border-color:transparent;color:var(--absent)}
-.chip.loading{color:var(--ink-3);border-style:dashed}
+.chip{font-size:12.5px;padding:4px 10px;border-radius:999px;color:var(--ink-3);
+  border:1px solid var(--line);font-weight:500}
+.chip.yes{background:var(--go-soft);border-color:transparent;color:var(--go);font-weight:700}
+.chip.no{background:var(--stop-soft);border-color:transparent;color:var(--stop)}
+.chip.loading{border-style:dashed}
+.chip i{font-family:var(--num);font-style:normal;font-weight:700;margin-right:4px;opacity:.65}
+
+/* ---- 終わった分 ---- */
+.card.done{background:transparent;box-shadow:none;border:1px solid var(--line);margin-bottom:7px}
+.card.done .band{background:transparent;color:var(--ink-3);border-bottom:none;padding-bottom:0}
+.card.done .d-num{font-size:21px}
+.card.done .badge{background:transparent;color:var(--ink-3);padding-right:0}
+.card.done .body{padding-top:4px;opacity:.8}
+.card.done .where{font-size:13px;color:var(--ink-2)}
+.card.done .where .t{font-size:14px}
 
 /* ---- 状態表示 ---- */
-.msg{padding:16px;border-radius:12px;font-size:14px;line-height:1.75}
-.msg.error{background:var(--absent-soft);color:var(--absent);border:1px solid transparent}
-.msg.info{background:var(--card);border:1px solid var(--line);color:var(--ink-2)}
-.msg code{background:rgba(127,127,127,.14);padding:1px 5px;border-radius:4px;font-size:12.5px}
-.empty{text-align:center;color:var(--ink-3);font-size:14px;padding:26px 10px}
+.msg{background:var(--card);border-radius:12px;padding:18px;font-size:14px;line-height:1.8;
+  box-shadow:var(--shadow)}
+.msg.error{background:var(--stop-soft);color:var(--stop);box-shadow:none}
+.msg b{display:block;margin-bottom:4px}
+.msg code{background:rgba(127,127,127,.16);padding:1px 5px;border-radius:4px;font-size:12.5px}
+.empty{text-align:center;color:var(--ink-3);font-size:13.5px;padding:24px 10px}
 
-.toast{position:fixed;left:50%;bottom:22px;transform:translate(-50%,14px);
+.toast{position:fixed;left:50%;bottom:20px;transform:translate(-50%,14px);
   background:var(--ink);color:var(--bg);font-size:13.5px;font-weight:700;
-  padding:10px 18px;border-radius:999px;opacity:0;pointer-events:none;
-  transition:opacity .18s ease, transform .18s ease;z-index:20}
+  padding:11px 20px;border-radius:999px;opacity:0;pointer-events:none;
+  transition:opacity .18s ease, transform .18s ease;z-index:20;max-width:88vw;text-align:center}
 .toast.show{opacity:1;transform:translate(-50%,0)}
-.toast.bad{background:var(--absent);color:#fff}
+.toast.bad{background:var(--stop);color:#fff}
 
-.foot{margin-top:26px;text-align:center;font-size:12px;color:var(--ink-3)}
+.foot{margin-top:22px;text-align:center;font-size:12px;color:var(--ink-3)}
+
+.head-act{display:flex;gap:6px;margin-left:auto}
+.head-act button{background:none;border:1px solid var(--line);color:var(--ink-3);
+  border-radius:7px;padding:4px 9px;font-size:11.5px;font-weight:700;letter-spacing:.04em}
+
+/* まだログインしていない人に出す案内。次から探さなくて済む、という一点だけ言う */
+.upsell{background:var(--card);border-radius:12px;padding:13px 14px;margin:0 0 14px;
+  box-shadow:var(--shadow);display:flex;align-items:center;gap:11px;flex-wrap:wrap}
+.upsell p{margin:0;flex:1;min-width:150px;font-size:13px;color:var(--ink-2);line-height:1.55}
+.upsell p b{color:var(--ink);font-weight:700}
+.gbtn{border:1px solid var(--line);background:var(--card);color:var(--ink);
+  border-radius:9px;padding:10px 15px;font-size:14px;font-weight:700;
+  display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+.gbtn .g{width:17px;height:17px;flex:0 0 auto}
+
+/* ログイン待ちの表紙 */
+.gate{background:var(--card);border-radius:14px;box-shadow:var(--shadow);
+  padding:26px 20px;text-align:center}
+.gate h1{font-size:19px;font-weight:900;margin:0 0 6px}
+.gate p{font-size:13.5px;color:var(--ink-2);margin:0 0 18px;line-height:1.75}
+
+@media (prefers-reduced-motion: reduce){
+  *{transition:none !important}
+}
 </style>
 </head>
 <body>
@@ -129,6 +212,7 @@ button{font-family:inherit;cursor:pointer}
 <div class="toast" id="toast" role="status"></div>
 
 <script src="./config.local.js" onerror="window.__noConfig=true"></script>
+<script src="./js/auth.js"></script>
 <script src="./js/db.js"></script>
 <script>
 (function () {
@@ -136,6 +220,9 @@ button{font-family:inherit;cursor:pointer}
   const foot = document.getElementById('foot');
   const toastEl = document.getElementById('toast');
 
+  const ELEVEN = 11;          // 試合に必要な人数
+
+  let mode = 'invite';       // 'invite' … 招待リンクで見ている / 'auth' … ログイン済み
   let token = null;
   let data = null;
   let openEvent = null;      // 「誰が来る？」を開いている予定のid
@@ -148,14 +235,25 @@ button{font-family:inherit;cursor:pointer}
 
   const DOW = ['日', '月', '火', '水', '木', '金', '土'];
 
+  function today() {
+    const n = new Date();
+    return new Date(n.getFullYear(), n.getMonth(), n.getDate());
+  }
+
   function fmtDate(iso) {
     const [y, m, d] = String(iso).split('-').map(Number);
     const dt = new Date(y, m - 1, d);          // ローカルで組み立て（時差でずれないように）
     const dow = dt.getDay();
+    const days = Math.round((dt - today()) / 86400000);
+    let rel = '';
+    if (days === 0) rel = 'きょう';
+    else if (days === 1) rel = 'あす';
+    else if (days > 1 && days <= 30) rel = 'あと' + days + '日';
     return {
       text: m + '/' + d,
       dow: DOW[dow],
       cls: dow === 0 ? 'sun' : dow === 6 ? 'sat' : '',
+      rel: rel,
     };
   }
 
@@ -169,91 +267,147 @@ button{font-family:inherit;cursor:pointer}
     toastTimer = setTimeout(() => { toastEl.className = 'toast'; }, bad ? 4200 : 1600);
   }
 
+  function googleBtn(act, label) {
+    return '<button class="gbtn" data-act="' + act + '">' +
+      '<svg class="g" viewBox="0 0 48 48" aria-hidden="true">' +
+      '<path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.6 30.2 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.8 6.1C12.3 13.2 17.6 9.5 24 9.5z"/>' +
+      '<path fill="#4285F4" d="M46.98 24.5c0-1.6-.15-3.2-.44-4.7H24v9.1h12.9c-.56 3-2.24 5.5-4.78 7.2l7.5 5.8c4.4-4 6.9-10 6.9-17.4z"/>' +
+      '<path fill="#FBBC05" d="M10.4 28.7c-.5-1.5-.8-3-.8-4.7s.3-3.2.8-4.7l-7.8-6.1C.9 16.5 0 20.1 0 24s.9 7.5 2.6 10.8l7.8-6.1z"/>' +
+      '<path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.8 2.3-8.4 2.3-6.4 0-11.7-3.7-13.6-8.8l-7.8 6.1C6.5 42.6 14.6 48 24 48z"/>' +
+      '</svg>' + (label || 'Googleでログイン') + '</button>';
+  }
+
   // ---- 画面 ----
   function showMessage(kind, html) {
     foot.hidden = true;
     app.innerHTML = '<div class="msg ' + kind + '">' + html + '</div>';
   }
 
-  function eventCard(ev, isPast) {
+  // 試合のときだけ出す「11人まであと何人」。
+  function gauge(yes) {
+    const pct = Math.min(100, Math.round((yes / ELEVEN) * 100));
+    let h = '<div class="gauge">';
+    h += '<div class="gauge-bar"><span style="width:' + pct + '%"></span></div>';
+    if (yes >= ELEVEN) {
+      const extra = yes - ELEVEN;
+      h += '<p class="gauge-txt full">11人そろいました' +
+           (extra > 0 ? '　控え <b>' + extra + '</b> 人' : '') + '</p>';
+    } else {
+      h += '<p class="gauge-txt">あと <b>' + (ELEVEN - yes) + '</b> 人で11人</p>';
+    }
+    h += '</div>';
+    return h;
+  }
+
+  function eventCard(ev, isPast, isHero) {
     const d = fmtDate(ev.date);
     const yes = ev.yes_count || 0;
     const no = ev.no_count || 0;
     const waiting = Math.max(0, (data.member_count || 0) - yes - no);
-    const kindLabel = ev.kind === 'match' ? '試合' : '練習';
+    const isMatch = ev.kind === 'match';
+    const answered = ev.my_status === 'yes' || ev.my_status === 'no';
 
-    let html = '<div class="card' + (isPast ? ' done' : '') + '">';
+    let h = '<div class="card kind-' + ev.kind + (isPast ? ' done' : '') +
+              (isHero ? ' hero' : '') + '">';
 
-    html += '<div class="when">';
-    html += '<span class="date ' + d.cls + '">' + d.text + '<span class="dow">(' + d.dow + ')</span></span>';
-    html += '<span class="badge ' + ev.kind + '">' + kindLabel + '</span>';
-    if (ev.start_time) html += '<span class="time">' + esc(fmtTime(ev.start_time)) + '</span>';
-    html += '</div>';
+    h += '<div class="band">';
+    h += '<span class="d-num">' + d.text + '</span>';
+    h += '<span class="d-dow ' + d.cls + '">(' + d.dow + ')</span>';
+    if (!isPast && d.rel) h += '<span class="d-rel">' + d.rel + '</span>';
+    h += '<span class="badge">' + (isMatch ? '試合' : '練習') + '</span>';
+    h += '</div>';
 
-    if (ev.place) html += '<p class="where">' + esc(ev.place) + '</p>';
-    if (ev.note) html += '<p class="note">' + esc(ev.note) + '</p>';
+    h += '<div class="body">';
+    if (ev.start_time || ev.place) {
+      h += '<p class="where">';
+      if (ev.start_time) h += '<span class="t">' + esc(fmtTime(ev.start_time)) + '</span>';
+      if (ev.place) h += esc(ev.place);
+      h += '</p>';
+    }
+    if (ev.note) h += '<p class="note">' + esc(ev.note) + '</p>';
 
     if (!isPast) {
-      html += '<div class="pick">';
-      html += '<button class="yes" data-act="set" data-ev="' + ev.id + '" data-v="yes"' +
-              ' aria-pressed="' + (ev.my_status === 'yes') + '">出席</button>';
-      html += '<button class="no" data-act="set" data-ev="' + ev.id + '" data-v="no"' +
-              ' aria-pressed="' + (ev.my_status === 'no') + '">欠席</button>';
-      html += '</div>';
+      if (!answered) h += '<div class="ask">まだ答えていません</div>';
+      h += '<div class="pick">';
+      h += '<button class="yes" data-act="set" data-ev="' + ev.id + '" data-v="yes"' +
+           ' aria-pressed="' + (ev.my_status === 'yes') + '">出席</button>';
+      h += '<button class="no" data-act="set" data-ev="' + ev.id + '" data-v="no"' +
+           ' aria-pressed="' + (ev.my_status === 'no') + '">欠席</button>';
+      h += '</div>';
+      if (isMatch) h += gauge(yes);
     }
 
-    html += '<div class="tally">';
-    html += '<span class="yes">出席 <b>' + yes + '</b></span>';
-    html += '<span>欠席 <b>' + no + '</b></span>';
-    if (!isPast) html += '<span class="waiting">未回答 <b>' + waiting + '</b></span>';
-    html += '<button class="who" data-act="who" data-ev="' + ev.id + '">' +
-            (openEvent === ev.id ? '閉じる' : '誰が来る？') + '</button>';
-    html += '</div>';
+    h += '<div class="tally">';
+    h += '<span class="yes">出席 <b>' + yes + '</b></span>';
+    h += '<span class="no">欠席 <b>' + no + '</b></span>';
+    if (!isPast) h += '<span class="waiting">未回答 <b>' + waiting + '</b></span>';
+    h += '<button class="who" data-act="who" data-ev="' + ev.id + '">' +
+         (openEvent === ev.id ? '閉じる' : '誰が来る？') + '</button>';
+    h += '</div>';
 
     if (openEvent === ev.id) {
       const roster = rosterCache[ev.id];
-      html += '<div class="roster">';
+      h += '<div class="roster">';
       if (!roster) {
-        html += '<span class="chip loading">読み込み中…</span>';
+        h += '<span class="chip loading">読み込み中…</span>';
       } else {
         for (const m of roster) {
           const cls = m.status === 'yes' ? 'yes' : m.status === 'no' ? 'no' : '';
-          const mark = m.status === 'yes' ? '○ ' : m.status === 'no' ? '× ' : '';
-          html += '<span class="chip ' + cls + '">' + mark + esc(m.name) + '</span>';
+          h += '<span class="chip ' + cls + '">' +
+               (m.number ? '<i>' + esc(m.number) + '</i>' : '') + esc(m.name) + '</span>';
         }
       }
-      html += '</div>';
+      h += '</div>';
     }
 
-    html += '</div>';
-    return html;
+    h += '</div></div>';
+    return h;
   }
 
   function render() {
     const me = data.me;
-    let html = '';
+    let h = '';
 
-    html += '<div class="head">';
-    html += '<div><div class="team">' + esc(data.team) + '</div>';
-    html += '<div class="me">' + (me.number ? '<span class="num">' + esc(me.number) + '</span>' : '') +
-            esc(me.name) + '</div></div>';
-    html += '</div>';
+    h += '<div class="head">';
+    h += '<div><div class="team">' + esc(data.team) + '</div>';
+    h += '<div class="me">' + (me.number ? '<span class="num">' + esc(me.number) + '</span>' : '') +
+         esc(me.name) + '</div></div>';
+    if (mode === 'auth') {
+      h += '<div class="head-act">';
+      h += '<button data-act="rename">名前を変える</button>';
+      h += '<button data-act="signout">ログアウト</button>';
+      h += '</div>';
+    }
+    h += '</div>';
+
+    if (mode === 'invite') {
+      h += '<div class="upsell">';
+      h += '<p><b>次からリンクを探さずに開けます。</b>' +
+           '一度ログインしておくと、このページを開くだけで自分の欄が出ます。</p>';
+      h += googleBtn('signin');
+      h += '</div>';
+    }
 
     const upcoming = data.events || [];
-    html += '<div class="sect">これからの予定</div>';
     if (!upcoming.length) {
-      html += '<p class="empty">これからの予定はまだ登録されていません。</p>';
+      h += '<div class="sect">つぎの予定</div>';
+      h += '<p class="empty">これからの予定はまだ登録されていません。</p>';
     } else {
-      for (const ev of upcoming) html += eventCard(ev, false);
+      h += '<div class="sect">つぎの予定</div>';
+      h += eventCard(upcoming[0], false, true);
+      if (upcoming.length > 1) {
+        h += '<div class="sect">そのあと</div>';
+        for (const ev of upcoming.slice(1)) h += eventCard(ev, false);
+      }
     }
 
     const past = (data.past || []).slice(0, 5);
     if (past.length) {
-      html += '<div class="sect">おわった分</div>';
-      for (const ev of past) html += eventCard(ev, true);
+      h += '<div class="sect">おわった分</div>';
+      for (const ev of past) h += eventCard(ev, true);
     }
 
-    app.innerHTML = html;
+    app.innerHTML = h;
     foot.hidden = false;
   }
 
@@ -267,7 +421,9 @@ button{font-family:inherit;cursor:pointer}
     busy = true;
     document.querySelectorAll('.pick button').forEach((b) => { b.disabled = true; });
     try {
-      data = await DB.rpc('set_status', { p_token: token, p_event_id: eventId, p_status: next });
+      data = mode === 'auth'
+        ? await DB.rpc('me_set_status', { p_event_id: eventId, p_status: next }, true)
+        : await DB.rpc('set_status', { p_token: token, p_event_id: eventId, p_status: next });
       delete rosterCache[eventId];
       if (openEvent === eventId) await loadRoster(eventId);
       render();
@@ -281,7 +437,9 @@ button{font-family:inherit;cursor:pointer}
   }
 
   async function loadRoster(eventId) {
-    const res = await DB.rpc('event_detail', { p_token: token, p_event_id: eventId });
+    const res = mode === 'auth'
+      ? await DB.rpc('me_event_detail', { p_event_id: eventId }, true)
+      : await DB.rpc('event_detail', { p_token: token, p_event_id: eventId });
     rosterCache[eventId] = res.roster || [];
   }
 
@@ -295,37 +453,112 @@ button{font-family:inherit;cursor:pointer}
     }
   }
 
-  document.addEventListener('click', (e) => {
+  async function renameMe() {
+    const next = prompt('表示する名前', (data && data.me && data.me.name) || '');
+    if (next === null) return;
+    try {
+      data = await DB.rpc('me_set_name', { p_name: next }, true);
+      render();
+      toast('名前を変えました');
+    } catch (e) {
+      toast(e.message, true);
+    }
+  }
+
+  function inviteInUrl() {
+    return (location.hash || '').replace(/^#\/?m?\/?/, '').trim() || token || null;
+  }
+
+  document.addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-act]');
     if (!btn) return;
-    if (btn.dataset.act === 'set') setStatus(btn.dataset.ev, btn.dataset.v);
-    if (btn.dataset.act === 'who') toggleWho(btn.dataset.ev);
+    const act = btn.dataset.act;
+
+    if (act === 'set') { setStatus(btn.dataset.ev, btn.dataset.v); return; }
+    if (act === 'who') { toggleWho(btn.dataset.ev); return; }
+    if (act === 'rename') { renameMe(); return; }
+
+    if (act === 'signin') {
+      const t = inviteInUrl();
+      if (t) Auth.stashInvite(t);
+      Auth.signIn(t);
+      return;
+    }
+
+    if (act === 'signout') {
+      await Auth.signOut();
+      location.href = location.origin + location.pathname;
+      return;
+    }
   });
 
   // ---- 起動 ----
   async function start() {
     if (window.__noConfig || !DB.ready()) {
       showMessage('info',
-        '<b>まだ接続先が設定されていません。</b><br>' +
+        '<b>まだ接続先が設定されていません。</b>' +
         '<code>cp .env.example .env</code> で .env を作り、Supabase の Project URL と anon キーを書いてから ' +
         '<code>npm run setup</code> を実行してください。');
       return;
     }
 
-    token = (location.hash || '').replace(/^#\/?m?\/?/, '').trim();
-    if (!token) {
-      showMessage('info',
-        '<b>個人リンクから開いてください。</b><br>' +
-        'チームのLINEに届いた、あなた専用のURLをタップすると出欠を登録できます。' +
-        'リンクが分からない場合はマネージャーに聞いてください。');
+    // ログインから戻ってきた直後なら、ここで受け取って URL を綺麗にする
+    const back = Auth.absorbRedirect();
+    if (back.error) {
+      showMessage('error', '<b>ログインできませんでした。</b>' + esc(back.error) +
+        '<br><br>もう一度、LINEに届いた招待リンクから開いてみてください。');
       return;
     }
 
+    const hashToken = (location.hash || '').replace(/^#\/?m?\/?/, '').trim();
+
+    // ---- ログイン済み ----
+    if (Auth.loggedIn()) {
+      mode = 'auth';
+      const invite = back.invite || Auth.takeInvite() || hashToken || null;
+
+      // 招待リンクを持って来ていれば、まず名簿と結びつける
+      if (invite) {
+        try {
+          data = await DB.rpc('claim_member', { p_token: invite }, true);
+          render();
+          toast('ログインしました');
+          return;
+        } catch (e) {
+          // 既に結びついている場合などはここに来る。そのまま下で me_home を試す
+        }
+      }
+
+      try {
+        data = await DB.rpc('me_home', {}, true);
+        render();
+      } catch (e) {
+        showMessage('error', '<b>開けませんでした。</b>' + esc(e.message) +
+          '<br><br>LINEに届いた<b>招待リンク</b>から開き直すと、名簿と結びつけられます。');
+      }
+      return;
+    }
+
+    // ---- まだログインしていない ----
+    if (!hashToken) {
+      foot.hidden = true;
+      app.innerHTML =
+        '<div class="gate">' +
+        '<h1>出欠登録</h1>' +
+        '<p>チームのLINEに届いた<b>あなた専用のリンク</b>から開いてください。<br>' +
+        '一度ログインしておけば、次からはこのページだけで開けます。</p>' +
+        googleBtn('signin') +
+        '</div>';
+      return;
+    }
+
+    mode = 'invite';
+    token = hashToken;
     try {
       data = await DB.rpc('member_home', { p_token: token });
       render();
     } catch (e) {
-      showMessage('error', '<b>開けませんでした。</b><br>' + esc(e.message));
+      showMessage('error', '<b>開けませんでした。</b>' + esc(e.message));
     }
   }
 

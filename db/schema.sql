@@ -59,6 +59,11 @@ create table if not exists attendance (
 );
 
 create index if not exists attendance_event_idx on attendance(event_id);
+
+-- Google アカウントとの紐付け先。null なら「まだログインしていない人」。
+-- 既にデータが入っていても壊れないよう、後から足せる形にしてある。
+alter table members add column if not exists auth_user_id uuid;
+create unique index if not exists members_auth_user_idx on members(auth_user_id);
 create index if not exists events_date_idx      on events(event_date);
 
 
@@ -104,6 +109,30 @@ begin
   if not found then
     raise exception 'リンクが正しくありません' using errcode = '28000';
   end if;
+  -- 一度ログインして名簿と結びついた人の招待リンクは、そこで役目を終える。
+  -- 転送された古いリンクでは入れない。
+  if v_member.auth_user_id is not null then
+    raise exception 'この招待リンクは使用済みです。ログインして開いてください' using errcode = '28000';
+  end if;
+  return v_member;
+end;
+$$;
+
+-- ---- 内部用：ログイン中の Google アカウントから名簿を引く ----
+-- auth.uid() は Supabase が用意する「いま誰がログインしているか」を返す関数。
+create or replace function app_member_of_auth()
+returns members
+language plpgsql stable security definer set search_path = public, pg_temp
+as $$
+declare v_member members;
+begin
+  if auth.uid() is null then
+    raise exception 'ログインしていません' using errcode = '28000';
+  end if;
+  select * into v_member from members where auth_user_id = auth.uid() and active;
+  if not found then
+    raise exception 'このアカウントはまだ名簿と結びついていません' using errcode = '28000';
+  end if;
   return v_member;
 end;
 $$;
@@ -146,20 +175,18 @@ $$;
 -- 4-1. メンバー用の関数
 -- ============================================================
 
--- 個人リンクを開いたときに呼ぶ。自分の情報と予定一覧が返る。
-create or replace function member_home(p_token text)
+-- ---- 内部用：ホーム画面の中身。窓口が2つ（招待リンク／ログイン）あるので切り出す ----
+create or replace function app_home_json(v_member members)
 returns jsonb
 language plpgsql stable security definer set search_path = public, pg_temp
 as $$
 declare
-  v_member members;
-  v_today  date := (now() at time zone 'Asia/Tokyo')::date;
+  v_today date := (now() at time zone 'Asia/Tokyo')::date;
 begin
-  v_member := app_member_of(p_token);
-
   return jsonb_build_object(
     'team',         (select team_name from team_config where id = 1),
-    'me',           jsonb_build_object('id', v_member.id, 'name', v_member.name, 'number', v_member.number),
+    'me',           jsonb_build_object('id', v_member.id, 'name', v_member.name,
+                      'number', v_member.number, 'linked', v_member.auth_user_id is not null),
     'member_count', (select count(*) from members where active),
     'events', coalesce((
       select jsonb_agg(app_event_json(e, v_member.id) order by e.event_date, e.start_time nulls last)
@@ -172,6 +199,26 @@ begin
       where e.event_date < v_today
     ), '[]'::jsonb)
   );
+end;
+$$;
+
+-- 招待リンクを開いたときに呼ぶ（まだログインしていない人）。
+create or replace function member_home(p_token text)
+returns jsonb
+language plpgsql stable security definer set search_path = public, pg_temp
+as $$
+begin
+  return app_home_json(app_member_of(p_token));
+end;
+$$;
+
+-- ログイン済みの人が開いたときに呼ぶ。引数は要らない。誰かは auth.uid() が知っている。
+create or replace function me_home()
+returns jsonb
+language plpgsql stable security definer set search_path = public, pg_temp
+as $$
+begin
+  return app_home_json(app_member_of_auth());
 end;
 $$;
 
@@ -221,6 +268,111 @@ end;
 $$;
 
 
+-- 招待リンクを、いまログインしている Google アカウントに結びつける。
+-- これが「一度きりの招待状」の実体。成功するとホーム画面の中身が返る。
+create or replace function claim_member(p_token text)
+returns jsonb
+language plpgsql security definer set search_path = public, pg_temp
+as $$
+declare v_member members;
+begin
+  if auth.uid() is null then
+    raise exception 'ログインしてから招待リンクを開いてください' using errcode = '28000';
+  end if;
+
+  select * into v_member from members where token = p_token and active;
+  if not found then
+    raise exception '招待リンクが正しくありません' using errcode = '28000';
+  end if;
+
+  -- 他人が使い終わった招待リンクは受け付けない
+  if v_member.auth_user_id is not null and v_member.auth_user_id <> auth.uid() then
+    raise exception 'この招待リンクは既に使われています' using errcode = '28000';
+  end if;
+
+  -- 同じアカウントが二人分の席を持たないようにする
+  if exists (select 1 from members m where m.auth_user_id = auth.uid() and m.id <> v_member.id) then
+    raise exception 'このアカウントは既に別のメンバーとして登録されています' using errcode = '28000';
+  end if;
+
+  update members set auth_user_id = auth.uid() where id = v_member.id
+    returning * into v_member;
+
+  return app_home_json(v_member);
+end;
+$$;
+
+-- 出席・欠席を答える（ログイン済み）。null を渡すと未回答に戻る。
+create or replace function me_set_status(p_event_id uuid, p_status text)
+returns jsonb
+language plpgsql security definer set search_path = public, pg_temp
+as $$
+declare v_member members;
+begin
+  v_member := app_member_of_auth();
+
+  if p_status is null then
+    delete from attendance where event_id = p_event_id and member_id = v_member.id;
+  elsif p_status in ('yes','no') then
+    insert into attendance (event_id, member_id, status, updated_at)
+    values (p_event_id, v_member.id, p_status, now())
+    on conflict (event_id, member_id)
+      do update set status = excluded.status, updated_at = now();
+  else
+    raise exception '出欠の値が不正です';
+  end if;
+
+  return app_home_json(v_member);
+end;
+$$;
+
+-- 予定を開いたときに「誰が出席で誰が未回答か」を見る（ログイン済み）。
+create or replace function me_event_detail(p_event_id uuid)
+returns jsonb
+language plpgsql stable security definer set search_path = public, pg_temp
+as $$
+begin
+  perform app_member_of_auth();
+
+  return jsonb_build_object(
+    'roster', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'id', m.id, 'name', m.name, 'number', m.number,
+               'status', (select a.status from attendance a
+                           where a.event_id = p_event_id and a.member_id = m.id))
+             order by m.sort_order, m.name)
+      from members m where m.active
+    ), '[]'::jsonb)
+  );
+end;
+$$;
+
+-- 自分の表示名を変える。実名で運用するので、表記のゆれは本人が直せる方がよい。
+create or replace function me_set_name(p_name text)
+returns jsonb
+language plpgsql security definer set search_path = public, pg_temp
+as $$
+declare
+  v_member members;
+  v_name   text := btrim(coalesce(p_name, ''));
+begin
+  v_member := app_member_of_auth();
+
+  if v_name = '' then
+    raise exception '名前を入力してください';
+  end if;
+  if length(v_name) > 40 then
+    raise exception '名前が長すぎます（40文字まで）';
+  end if;
+
+  update members set name = v_name where id = v_member.id
+    returning * into v_member;
+
+  return app_home_json(v_member);
+end;
+$$;
+
+
 -- ============================================================
 -- 4-2. 管理用の関数（すべて管理トークンを確かめる）
 -- ============================================================
@@ -238,7 +390,8 @@ begin
     'members', coalesce((
       select jsonb_agg(jsonb_build_object(
                'id', m.id, 'name', m.name, 'number', m.number,
-               'active', m.active, 'token', m.token, 'sort_order', m.sort_order)
+               'active', m.active, 'token', m.token, 'sort_order', m.sort_order,
+               'linked', m.auth_user_id is not null)
              order by m.sort_order, m.name)
       from members m
     ), '[]'::jsonb),
@@ -380,6 +533,20 @@ begin
 end;
 $$;
 
+-- 管理用リンクが漏れたとき用。これが無いと Supabase の SQL Editor を開くしかない。
+-- 新しいトークンを返すので、押した本人はそのまま新しいURLへ移れる。
+create or replace function admin_reissue_admin_token(p_admin text)
+returns jsonb
+language plpgsql security definer set search_path = public, pg_temp
+as $$
+declare v_new text := replace(gen_random_uuid()::text, '-', '');
+begin
+  perform app_check_admin(p_admin);
+  update team_config set admin_token = v_new where id = 1;
+  return jsonb_build_object('admin_token', v_new);
+end;
+$$;
+
 create or replace function admin_rename_team(p_admin text, p_name text)
 returns jsonb
 language plpgsql security definer set search_path = public, pg_temp
@@ -399,6 +566,8 @@ $$;
 revoke execute on function app_member_of(text)        from anon, authenticated;
 revoke execute on function app_check_admin(text)      from anon, authenticated;
 revoke execute on function app_event_json(events,uuid) from anon, authenticated;
+revoke execute on function app_member_of_auth()        from anon, authenticated;
+revoke execute on function app_home_json(members)      from anon, authenticated;
 
 
 -- ============================================================

@@ -245,6 +245,115 @@ begin
   raise notice '--- 鍵のかかり具合：すべて合格 ---';
 end $$;
 
+-- ============================================================
+-- DAY9 で足した分：ログインと、一度きりの招待状。
+--
+-- Supabase では auth.uid() が「いま誰がログインしているか」を返します。
+-- 手元の PostgreSQL にはそれが無いので、同じ名前の代役をここで用意します。
+-- （Supabase 上で流した場合は本物があるので触りません）
+-- ============================================================
+
+do $$
+begin
+  if to_regnamespace('auth') is null then
+    execute 'create schema auth';
+    execute 'create function auth.uid() returns uuid language sql stable as '
+         || '$f$select nullif(current_setting(''request.jwt.claim.sub'', true), '''')::uuid$f$';
+  end if;
+end $$;
+
+do $$
+declare
+  v_admin  text := (select admin_token from team_config where id = 1);
+  v_a      uuid := '11111111-1111-1111-1111-111111111111';
+  v_b      uuid := '22222222-2222-2222-2222-222222222222';
+  v_token  text;
+  v_res    jsonb;
+  v_old    text;
+begin
+  perform admin_add_members(v_admin, array['ログイン太郎']);
+  select token into v_token from members where name = 'ログイン太郎';
+
+  -- 18
+  perform set_config('request.jwt.claim.sub', '', true);
+  v_res := member_home(v_token);
+  if (v_res->'me'->>'linked')::boolean then
+    raise exception 'まだログインしていないのに結びついている';
+  end if;
+  raise notice '18. 招待リンクは、ログイン前でも使える';
+
+  -- 19
+  perform set_config('request.jwt.claim.sub', v_a::text, true);
+  v_res := claim_member(v_token);
+  if not (v_res->'me'->>'linked')::boolean then
+    raise exception 'claim したのに結びついていない';
+  end if;
+  raise notice '19. ログインすると、その人と名簿が結びつく';
+
+  -- 20
+  begin
+    perform set_config('request.jwt.claim.sub', '', true);
+    perform member_home(v_token);
+    raise exception '使用済みの招待リンクで入れてしまった';
+  exception when sqlstate '28000' then
+    raise notice '20. 使い終わった招待リンクは、もう通らない';
+  end;
+
+  -- 21
+  begin
+    perform set_config('request.jwt.claim.sub', v_b::text, true);
+    perform claim_member(v_token);
+    raise exception '他人が招待リンクを乗っ取れてしまった';
+  exception when sqlstate '28000' then
+    raise notice '21. 他人が同じ招待リンクを使っても弾かれる';
+  end;
+
+  -- 22
+  perform set_config('request.jwt.claim.sub', v_a::text, true);
+  v_res := me_home();
+  if v_res->'me'->>'name' <> 'ログイン太郎' then
+    raise exception 'ログインしても自分の画面が出ない';
+  end if;
+  raise notice '22. ログインしていれば、リンク無しで自分の画面が出る';
+
+  -- 23
+  v_res := me_set_name('ログイン次郎');
+  if v_res->'me'->>'name' <> 'ログイン次郎' then
+    raise exception '名前が変わっていない';
+  end if;
+  begin
+    perform me_set_name('   ');
+    raise exception '空の名前が通ってしまった';
+  exception when others then
+    if sqlerrm like '%通ってしまった%' then raise; end if;
+  end;
+  raise notice '23. 自分の表示名を変えられる（空は拒否）';
+
+  -- 24
+  begin
+    perform set_config('request.jwt.claim.sub', '', true);
+    perform me_home();
+    raise exception 'ログインしていないのに通った';
+  exception when sqlstate '28000' then
+    raise notice '24. ログインしていない人は、ログイン用の窓口を使えない';
+  end;
+
+  -- 25
+  v_old := (select admin_token from team_config where id = 1);
+  v_res := admin_reissue_admin_token(v_old);
+  begin
+    perform admin_home(v_old);
+    raise exception '古い管理トークンがまだ通る';
+  exception when sqlstate '28000' then
+    null;
+  end;
+  perform admin_home(v_res->>'admin_token');
+  raise notice '25. 管理トークンを作り直すと、古いものはその場で無効になる';
+
+  raise notice '--- ログインまわり：すべて合格 ---';
+end $$;
+
+
 -- 後片付け
 delete from attendance;
 delete from events;
