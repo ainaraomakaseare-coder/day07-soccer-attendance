@@ -16,7 +16,7 @@ const root = path.join(__dirname, '..');
 const dist = path.join(root, 'dist');
 
 // 公開してよいものだけを、ここに列挙する。増やすときは中身を確かめてから。
-const PUBLISH = ['index.html', 'admin.html', 'js/db.js', 'config.local.js'];
+const PUBLISH = ['index.html', 'admin.html', 'js/db.js', 'js/auth.js', 'config.local.js'];
 
 // 万一にも混ざってはいけないもの
 const NEVER = ['.env', '.env.local', '.env.production'];
@@ -47,6 +47,21 @@ for (const bad of NEVER) {
   if (shipped.includes(bad)) {
     console.error('危険：' + bad + ' が公開対象に入っています。中止しました。');
     process.exit(1);
+  }
+}
+
+// HTML が読み込んでいるファイルが、ちゃんと dist に入っているか確かめる。
+// PUBLISH への足し忘れは、公開して初めて「動かない」と分かる種類の失敗なので、
+// ここで機械的に捕まえる。（DAY9 で js/auth.js を足し忘れた）
+for (const rel of shipped.filter((f) => f.endsWith('.html'))) {
+  const html = fs.readFileSync(path.join(dist, rel), 'utf8');
+  for (const m of html.matchAll(/<script[^>]+src="(\.\/[^"]+)"/g)) {
+    const ref = m[1].replace(/^\.\//, '');
+    if (!shipped.includes(ref)) {
+      console.error('足りません：' + rel + ' が ' + ref + ' を読み込んでいますが、');
+      console.error('公開対象に入っていません。scripts/build.js の PUBLISH に足してください。');
+      process.exit(1);
+    }
   }
 }
 
