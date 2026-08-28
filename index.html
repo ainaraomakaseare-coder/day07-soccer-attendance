@@ -193,6 +193,24 @@ button{font-family:inherit;cursor:pointer}
 .gate{background:var(--card);border-radius:14px;box-shadow:var(--shadow);
   padding:26px 20px;text-align:center}
 .gate h1{font-size:19px;font-weight:900;margin:0 0 6px}
+.gate input{font-family:var(--num);font-size:30px;font-weight:700;letter-spacing:.32em;
+  text-align:center;width:100%;padding:12px 10px;border:2px solid var(--line);border-radius:11px;
+  background:var(--bg);color:var(--ink);margin:4px 0 14px}
+.gate .btn{border:none;border-radius:11px;padding:13px 20px;font-size:15px;font-weight:700;
+  background:var(--ink);color:var(--bg);letter-spacing:.06em;width:100%}
+.pickme{display:flex;flex-direction:column;gap:7px;margin-top:4px;text-align:left}
+.pickme button{border:2px solid var(--line);background:transparent;color:var(--ink);
+  border-radius:11px;padding:13px 14px;font-size:15px;font-weight:700;text-align:left}
+.pickme button i{font-family:var(--num);font-style:normal;color:var(--ink-3);margin-right:9px}
+
+/* 車を出せるか。出席を選んだ人にだけ聞く */
+.car{margin:0 0 12px;padding:11px 12px;border-radius:11px;background:var(--bg)}
+.car-q{font-size:12px;font-weight:700;color:var(--ink-2);letter-spacing:.06em;margin:0 0 8px}
+.car-pick{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.car-pick button{border:2px solid var(--line);background:var(--card);color:var(--ink-2);
+  border-radius:9px;padding:10px 6px;font-size:14px;font-weight:700;letter-spacing:.06em}
+.car-pick button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.tally .cars b{color:var(--ink)}
 .gate p{font-size:13.5px;color:var(--ink-2);margin:0 0 18px;line-height:1.75}
 
 @media (prefers-reduced-motion: reduce){
@@ -228,6 +246,8 @@ button{font-family:inherit;cursor:pointer}
   let openEvent = null;      // 「誰が来る？」を開いている予定のid
   let rosterCache = {};
   let busy = false;
+  let joinCode = '';        // 合言葉で参加するときの入力
+  let joinRoster = null;    // 合言葉が合ったときの、まだ登録されていない人の一覧
 
   // ---- 小さな道具 ----
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
@@ -335,12 +355,23 @@ button{font-family:inherit;cursor:pointer}
            ' aria-pressed="' + (ev.my_status === 'no') + '">欠席</button>';
       h += '</div>';
       if (isMatch) h += gauge(yes);
+
+      // 出席の人にだけ「車を出せるか」を聞く。欠席の人に聞いても意味がない。
+      if (ev.asks_car && ev.my_status === 'yes') {
+        h += '<div class="car"><p class="car-q">車を出せますか？</p><div class="car-pick">';
+        h += '<button data-act="car" data-ev="' + ev.id + '" data-v="yes"' +
+             ' aria-pressed="' + (ev.my_car === 'yes') + '">出せる</button>';
+        h += '<button data-act="car" data-ev="' + ev.id + '" data-v="no"' +
+             ' aria-pressed="' + (ev.my_car === 'no') + '">出せない</button>';
+        h += '</div></div>';
+      }
     }
 
     h += '<div class="tally">';
     h += '<span class="yes">出席 <b>' + yes + '</b></span>';
     h += '<span class="no">欠席 <b>' + no + '</b></span>';
     if (!isPast) h += '<span class="waiting">未回答 <b>' + waiting + '</b></span>';
+    if (ev.asks_car) h += '<span class="cars">車 <b>' + (ev.car_count || 0) + '</b></span>';
     h += '<button class="who" data-act="who" data-ev="' + ev.id + '">' +
          (openEvent === ev.id ? '閉じる' : '誰が来る？') + '</button>';
     h += '</div>';
@@ -354,7 +385,8 @@ button{font-family:inherit;cursor:pointer}
         for (const m of roster) {
           const cls = m.status === 'yes' ? 'yes' : m.status === 'no' ? 'no' : '';
           h += '<span class="chip ' + cls + '">' +
-               (m.number ? '<i>' + esc(m.number) + '</i>' : '') + esc(m.name) + '</span>';
+               (m.number ? '<i>' + esc(m.number) + '</i>' : '') + esc(m.name) +
+               (m.car === 'yes' ? ' 🚗' : '') + '</span>';
         }
       }
       h += '</div>';
@@ -421,9 +453,11 @@ button{font-family:inherit;cursor:pointer}
     busy = true;
     document.querySelectorAll('.pick button').forEach((b) => { b.disabled = true; });
     try {
+      // 欠席・未回答に変えたら、車の回答も消す
+      const car = next === 'yes' ? (current && current.my_car) || null : null;
       data = mode === 'auth'
-        ? await DB.rpc('me_set_status', { p_event_id: eventId, p_status: next }, true)
-        : await DB.rpc('set_status', { p_token: token, p_event_id: eventId, p_status: next });
+        ? await DB.rpc('me_set_status', { p_event_id: eventId, p_status: next, p_car: car }, true)
+        : await DB.rpc('set_status', { p_token: token, p_event_id: eventId, p_status: next, p_car: car });
       delete rosterCache[eventId];
       if (openEvent === eventId) await loadRoster(eventId);
       render();
@@ -431,6 +465,32 @@ button{font-family:inherit;cursor:pointer}
     } catch (e) {
       toast(e.message, true);
       document.querySelectorAll('.pick button').forEach((b) => { b.disabled = false; });
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function setCar(eventId, value) {
+    if (busy) return;
+    const ev = (data.events || []).find((e) => e.id === eventId);
+    if (!ev) return;
+    const next = ev.my_car === value ? null : value;
+
+    busy = true;
+    document.querySelectorAll('.car-pick button').forEach((b) => { b.disabled = true; });
+    try {
+      data = mode === 'auth'
+        ? await DB.rpc('me_set_status', { p_event_id: eventId, p_status: 'yes', p_car: next }, true)
+        : await DB.rpc('set_status',
+            { p_token: token, p_event_id: eventId, p_status: 'yes', p_car: next });
+      delete rosterCache[eventId];
+      if (openEvent === eventId) await loadRoster(eventId);
+      render();
+      toast(next === 'yes' ? '車を出せるで登録しました'
+          : next === 'no' ? '車は出せないで登録しました' : '車の回答を取り消しました');
+    } catch (e) {
+      toast(e.message, true);
+      document.querySelectorAll('.car-pick button').forEach((b) => { b.disabled = false; });
     } finally {
       busy = false;
     }
@@ -450,6 +510,61 @@ button{font-family:inherit;cursor:pointer}
     if (!rosterCache[eventId]) {
       try { await loadRoster(eventId); } catch (e) { toast(e.message, true); }
       render();
+    }
+  }
+
+  // ログインはできたが、まだ名簿の誰かと結びついていない人に出す画面。
+  // 名簿にメールが載っていれば、ここには来ない（ログインだけで入れる）。
+  function showJoin(note) {
+    foot.hidden = true;
+    let h = '<div class="gate">';
+    h += '<h1>あなたはどなたですか</h1>';
+    if (note) h += '<p>' + note + '</p>';
+
+    if (!joinRoster) {
+      h += '<p>チームの<b>合言葉（6桁）</b>を入れてください。<br>マネージャーから届いています。</p>';
+      h += '<input id="f-code" inputmode="numeric" maxlength="6" placeholder="000000" value="' +
+           esc(joinCode) + '">';
+      h += '<button class="btn" data-act="code">つぎへ</button>';
+    } else if (!joinRoster.length) {
+      h += '<p>名簿に空きがありません。<br>マネージャーに連絡してください。</p>';
+      h += '<button class="btn" data-act="code-back">合言葉を入れ直す</button>';
+    } else {
+      h += '<p><b>名簿からご自分を選んでください。</b><br>' +
+           '一度選ぶと、そのGoogleアカウントに固定されます。</p>';
+      h += '<div class="pickme">';
+      for (const m of joinRoster) {
+        h += '<button data-act="pickme" data-m="' + m.id + '">' +
+             (m.number ? '<i>' + esc(m.number) + '</i>' : '') + esc(m.name) + '</button>';
+      }
+      h += '</div>';
+    }
+    h += '</div>';
+    app.innerHTML = h;
+  }
+
+  async function submitCode() {
+    const el = document.getElementById('f-code');
+    joinCode = (el ? el.value : '').replace(/[^0-9]/g, '');
+    if (joinCode.length !== 6) { toast('6桁の数字を入れてください', true); return; }
+    try {
+      const res = await DB.rpc('roster_by_code', { p_code: joinCode }, true);
+      joinRoster = res.members || [];
+      showJoin('');
+    } catch (e) {
+      toast(e.message, true);
+    }
+  }
+
+  async function pickMe(memberId) {
+    try {
+      data = await DB.rpc('claim_member_by_code',
+        { p_code: joinCode, p_member_id: memberId }, true);
+      mode = 'auth';
+      render();
+      toast('登録しました');
+    } catch (e) {
+      toast(e.message, true);
     }
   }
 
@@ -475,8 +590,12 @@ button{font-family:inherit;cursor:pointer}
     const act = btn.dataset.act;
 
     if (act === 'set') { setStatus(btn.dataset.ev, btn.dataset.v); return; }
+    if (act === 'car') { setCar(btn.dataset.ev, btn.dataset.v); return; }
     if (act === 'who') { toggleWho(btn.dataset.ev); return; }
     if (act === 'rename') { renameMe(); return; }
+    if (act === 'code') { submitCode(); return; }
+    if (act === 'code-back') { joinRoster = null; showJoin(''); return; }
+    if (act === 'pickme') { pickMe(btn.dataset.m); return; }
 
     if (act === 'signin') {
       const t = inviteInUrl();
@@ -533,8 +652,12 @@ button{font-family:inherit;cursor:pointer}
         data = await DB.rpc('me_home', {}, true);
         render();
       } catch (e) {
-        showMessage('error', '<b>開けませんでした。</b>' + esc(e.message) +
-          '<br><br>LINEに届いた<b>招待リンク</b>から開き直すと、名簿と結びつけられます。');
+        // 名簿と結びついていないだけなら、合言葉で自分を選んでもらう
+        if (String(e.message).indexOf('名簿') >= 0) {
+          showJoin('');
+        } else {
+          showMessage('error', '<b>開けませんでした。</b>' + esc(e.message));
+        }
       }
       return;
     }

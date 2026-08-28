@@ -354,9 +354,108 @@ begin
 end $$;
 
 
+-- ============================================================
+-- 出欠に加えて「車を出せるか」も聞く。
+-- 名簿にメールが載っている人は、ログインするだけで本人と分かる。
+-- 載っていない人は、チーム共通の合言葉で名簿から自分を選ぶ。
+-- ============================================================
+
+-- 手元では auth.users も代役を用意する（Supabase 上には本物がある）
+do $$
+begin
+  if to_regclass('auth.users') is null then
+    execute 'create table auth.users (id uuid primary key, email text)';
+  end if;
+end $$;
+
+do $$
+declare
+  v_admin text := (select admin_token from team_config where id = 1);
+  v_code  text;
+  v_a uuid := 'aaaa0000-0000-0000-0000-0000000000a1';
+  v_b uuid := 'bbbb0000-0000-0000-0000-0000000000b2';
+  v_res jsonb; v_ev uuid; v_mid uuid;
+begin
+  insert into auth.users(id, email) values (v_a, 'car.a@example.com'), (v_b, 'car.b@example.com')
+    on conflict (id) do update set email = excluded.email;
+
+  -- 26
+  v_res := admin_import_members(v_admin, array[
+    E'車テストA	car.a@example.com', E'車テストB', E'車テストC']);
+  if (v_res->>'added')::int <> 3 then
+    raise exception '取り込みの件数が合わない: %', v_res->>'added';
+  end if;
+  raise notice '26. スプレッドシート形式（名前+タブ+メール）を取り込める';
+
+  perform admin_save_event(v_admin, null, current_date + 5, '17:30', 'practice', '中外', null, true);
+  select id into v_ev from events where event_date = current_date + 5;
+
+  -- 27
+  perform set_config('request.jwt.claim.sub', v_a::text, true);
+  v_res := me_home();
+  if v_res->'me'->>'name' <> '車テストA' then
+    raise exception 'メールで本人と判別できていない';
+  end if;
+  raise notice '27. 名簿にメールがある人は、ログインするだけで本人と分かる';
+
+  -- 28
+  v_res := me_set_status(v_ev, 'yes', 'yes');
+  if (v_res->'events'->0->>'car_count')::int <> 1 then
+    raise exception '車の台数が数えられていない';
+  end if;
+  raise notice '28. 出席と一緒に「車を出せる」を答えられ、台数に反映される';
+
+  -- 29
+  v_res := me_set_status(v_ev, 'no', null);
+  if (v_res->'events'->0->>'car_count')::int <> 0 then
+    raise exception '欠席にしたのに車が残っている';
+  end if;
+  raise notice '29. 欠席に変えると、車の回答も落ちる';
+
+  -- 30
+  begin
+    perform me_set_status(v_ev, 'yes', 'maybe');
+    raise exception 'FAIL: 不正な車の値が通った';
+  exception when others then
+    if sqlerrm like 'FAIL%' then raise; end if;
+    raise notice '30. 車の値は yes / no 以外を受け付けない';
+  end;
+
+  -- 31
+  select join_code into v_code from team_config where id = 1;
+  perform set_config('request.jwt.claim.sub', v_b::text, true);
+  begin
+    perform roster_by_code('000000');
+    raise exception 'FAIL: 違う合言葉が通った';
+  exception when sqlstate '28000' then
+    raise notice '31. 違う合言葉でははじかれる';
+  end;
+
+  -- 32
+  select id into v_mid from members where name = '車テストB';
+  v_res := claim_member_by_code(v_code, v_mid);
+  if v_res->'me'->>'name' <> '車テストB' then
+    raise exception '合言葉で自分を選べていない';
+  end if;
+  raise notice '32. 合言葉を入れて、名簿から自分を選んで登録できる';
+
+  -- 33
+  begin
+    perform claim_member_by_code(v_code, v_mid);
+    raise exception 'FAIL: 登録済みの人を二重に取れた';
+  exception when sqlstate '28000' then
+    raise notice '33. 登録済みの人は、他の誰にも取られない';
+  end;
+
+  perform set_config('request.jwt.claim.sub', '', true);
+  raise notice '--- 車と合言葉：すべて合格 ---';
+end $$;
+
+
 -- 後片付け
 delete from attendance;
 delete from events;
 delete from members;
+delete from auth.users;
 
 select '✓ すべて合格' as "結果";

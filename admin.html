@@ -121,6 +121,14 @@ label.f{display:block;font-size:11px;font-weight:700;color:var(--ink-3);
   white-space:nowrap}
 .tag.on{background:var(--go-soft);color:var(--go)}
 .tag.off{background:var(--bg);color:var(--ink-3);border:1px solid var(--line)}
+.mrow .em{flex:1 1 100%;min-width:0;font-size:13px}
+.pset button.car[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.pset button:disabled{opacity:.35;cursor:default}
+.code{font-family:var(--num);font-size:44px;font-weight:700;letter-spacing:.22em;
+  text-align:center;color:var(--ink);margin:6px 0 2px;font-variant-numeric:tabular-nums}
+.codebox{background:var(--bg);border-radius:12px;padding:14px}
+.chk{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:700;color:var(--ink-2)}
+.chk input{width:20px;height:20px;flex:0 0 auto}
 
 /* リンク */
 .link{font-size:11.5px;color:var(--ink-3);word-break:break-all;background:var(--bg);
@@ -235,6 +243,7 @@ label.f{display:block;font-size:11px;font-weight:700;color:var(--ink-3);
     h += '<div><label class="f" for="f-place">場所</label><input id="f-place" placeholder="河川敷グラウンド"></div>';
     h += '</div>';
     h += '<div><label class="f" for="f-note">メモ</label><input id="f-note" placeholder="対戦相手・持ち物など"></div>';
+    h += '<label class="chk"><input type="checkbox" id="f-car" checked>車を出せるかも聞く</label>';
     h += '<div><button class="btn" data-act="add-event">この予定を追加</button></div>';
     h += '</div></div></div>';
 
@@ -271,6 +280,7 @@ label.f{display:block;font-size:11px;font-weight:700;color:var(--ink-3);
       h += '<span class="yes">出席 <b>' + yes + '</b></span>';
       h += '<span class="no">欠席 <b>' + no + '</b></span>';
       h += '<span>未回答 <b>' + noReply.length + '</b></span>';
+      if (ev.asks_car) h += '<span>車 <b>' + (ev.car_count || 0) + '</b></span>';
       h += '</div>';
 
       if (noReply.length) {
@@ -295,6 +305,12 @@ label.f{display:block;font-size:11px;font-weight:700;color:var(--ink-3);
                ev.id + '" data-m="' + m.id + '" data-v="yes">出席</button>';
           h += '<button class="no" aria-pressed="' + (st === 'no') + '" data-act="pset" data-ev="' +
                ev.id + '" data-m="' + m.id + '" data-v="no">欠席</button>';
+          if (ev.asks_car) {
+            const car = (ev.cars || {})[m.id] || null;
+            h += '<button class="car" aria-pressed="' + (car === 'yes') + '"' +
+                 (st === 'yes' ? '' : ' disabled') +
+                 ' data-act="pcar" data-ev="' + ev.id + '" data-m="' + m.id + '">車</button>';
+          }
           h += '</span></div>';
         }
         h += '<p class="hint">同じボタンをもう一度押すと未回答に戻ります。</p>';
@@ -311,9 +327,11 @@ label.f{display:block;font-size:11px;font-weight:700;color:var(--ink-3);
     let h = '';
     h += '<div class="sect">名簿をまとめて登録</div>';
     h += '<div class="card"><div class="pad">';
-    h += '<label class="f" for="f-bulk">名前を1行に1人ずつ（スプレッドシートの列をそのまま貼れます）</label>';
-    h += '<textarea id="f-bulk" rows="6" placeholder="山田 太郎&#10;佐藤 次郎&#10;鈴木 三郎"></textarea>';
-    h += '<p class="hint">すでに同じ名前がいる人は飛ばします。背番号はあとから付けられます。</p>';
+    h += '<label class="f" for="f-bulk">名前とメールを1行に1人ずつ（スプレッドシートの2列をそのまま貼れます）</label>';
+    h += '<textarea id="f-bulk" rows="6" placeholder="長井 孝資&#9;nagai@example.com&#10;志賀 祐&#9;shiga@example.com&#10;妹尾 英人"></textarea>';
+    h += '<p class="hint"><b>名前だけでも登録できます。</b>メールを入れておくと、その人は' +
+         '<b>ログインするだけ</b>で自分の画面が開きます（合言葉も招待リンクも要りません）。<br>' +
+         'すでにいる名前は飛ばし、メールだけ書き足します。タブ区切り・カンマ区切りのどちらでも読めます。</p>';
     h += '<div style="margin-top:12px"><button class="btn" data-act="add-members">まとめて登録</button></div>';
     h += '</div></div>';
 
@@ -335,14 +353,16 @@ label.f{display:block;font-size:11px;font-weight:700;color:var(--ink-3);
       h += '<span class="tag ' + (m.linked ? 'on' : 'off') + '">' +
            (m.linked ? 'ログイン済み' : '未ログイン') + '</span>';
       h += '<button class="btn ghost sm" data-act="save-member" data-m="' + m.id + '">保存</button>';
+      h += '<input class="em" value="' + esc(m.email || '') + '" placeholder="メールアドレス（任意）"' +
+           ' data-fld="email" data-m="' + m.id + '">';
       h += '<button class="btn ghost sm" data-act="toggle-member" data-m="' + m.id + '" data-v="' +
            (m.active ? 'off' : 'on') + '">' + (m.active ? '休会' : '復帰') + '</button>';
       h += '</div>';
     }
     h += '</div></div>';
     h += '<p class="hint">休会にすると出欠の集計から外れます。過去の記録は残ります。<br>' +
-         '「ログイン済み」の人は、招待リンクを無くしても自分の画面を開けます。' +
-         'その人の古い招待リンクは、もう誰にも使えません。</p>';
+         '<b>メールを入れた人</b>は、ログインするだけで自分の画面が開きます。' +
+         '入っていない人は、合言葉で名簿から自分を選ぶことになります。</p>';
     return h;
   }
 
@@ -360,16 +380,24 @@ label.f{display:block;font-size:11px;font-weight:700;color:var(--ink-3);
 
     const actives = (data.members || []).filter((m) => m.active);
     const yet = actives.filter((m) => !m.linked);
+    const noMail = yet.filter((m) => !m.email);
 
-    h += '<div class="sect">LINEに貼る文面</div>';
+    h += '<div class="sect">チームに配るもの</div>';
     h += '<div class="card"><div class="pad">';
-    h += '<p class="hint" style="margin-top:0">まだログインしていない ' + yet.length + ' 人分をまとめてコピーします。' +
-         '各自が自分の名前のリンクを開いてログインすると、次からリンクは要らなくなります。</p>';
-    h += '<div style="margin-top:12px"><button class="btn" data-act="copy-all">' +
-         (yet.length ? '未ログインの' + yet.length + '人分をコピー' : '全員ログイン済み') + '</button></div>';
-    h += '</div></div>';
+    h += '<div class="codebox"><p class="hint" style="margin:0;text-align:center">合言葉</p>';
+    h += '<p class="code">' + esc(data.join_code || '------') + '</p></div>';
+    h += '<p class="hint">LINEに貼るのは<b>この合言葉と、上のURLだけ</b>です。人ごとに違うリンクを' +
+         '配る必要はありません。<br>' +
+         '名簿に<b>メールを登録した人</b>は、合言葉すら要らずログインだけで入れます' +
+         '（いま ' + (actives.length - noMail.length) + ' / ' + actives.length + ' 人）。</p>';
+    h += '<div class="row" style="margin-top:12px">';
+    h += '<button class="btn" data-act="copy-invite">LINE用の文面をコピー</button>';
+    h += '<button class="btn danger sm" data-act="reissue-code">合言葉を作り直す</button>';
+    h += '</div></div></div>';
 
-    h += '<div class="sect">招待リンク（' + actives.length + '人）</div>';
+    h += '<div class="sect">個別の招待リンク（' + actives.length + '人・予備）</div>';
+    h += '<p class="hint" style="margin:0 2px 8px">' +
+         '合言葉がうまく伝わらない人にだけ、個別に渡してください。1回使うと無効になります。</p>';
     if (!actives.length) {
       h += '<p class="empty">メンバーを登録するとここにリンクが出ます。</p>';
     } else {
@@ -450,6 +478,7 @@ label.f{display:block;font-size:11px;font-weight:700;color:var(--ink-3);
         p_kind: document.getElementById('f-kind').value,
         p_place: document.getElementById('f-place').value,
         p_note: document.getElementById('f-note').value,
+        p_asks_car: document.getElementById('f-car').checked,
       });
       toast('予定を追加しました');
       return;
@@ -472,27 +501,59 @@ label.f{display:block;font-size:11px;font-weight:700;color:var(--ink-3);
       const ev = (data.events || []).find((x) => x.id === btn.dataset.ev);
       const now = ev && ev.answers ? ev.answers[btn.dataset.m] : null;
       const next = now === btn.dataset.v ? null : btn.dataset.v;
+      // 欠席・未回答にしたら車の回答も落とす
+      const car = next === 'yes' ? ((ev && ev.cars) || {})[btn.dataset.m] || null : null;
       await call('admin_set_status', {
-        p_event_id: btn.dataset.ev, p_member_id: btn.dataset.m, p_status: next,
+        p_event_id: btn.dataset.ev, p_member_id: btn.dataset.m, p_status: next, p_car: car,
+      });
+      return;
+    }
+
+    if (act === 'pcar') {
+      const ev = (data.events || []).find((x) => x.id === btn.dataset.ev);
+      const now = ((ev && ev.cars) || {})[btn.dataset.m] || null;
+      await call('admin_set_status', {
+        p_event_id: btn.dataset.ev, p_member_id: btn.dataset.m, p_status: 'yes',
+        p_car: now === 'yes' ? null : 'yes',
       });
       return;
     }
 
     if (act === 'add-members') {
       const box = document.getElementById('f-bulk');
-      const names = box.value.split('\n').map((s) => s.trim()).filter(Boolean);
-      if (!names.length) { toast('名前を入力してください', true); return; }
-      const res = await call('admin_add_members', { p_names: names });
-      if (res) { toast(res.added + '人を登録しました'); }
+      const rows = box.value.split('\n').map((s) => s.trim()).filter(Boolean);
+      if (!rows.length) { toast('名前を入力してください', true); return; }
+      const res = await call('admin_import_members', { p_rows: rows });
+      if (res) {
+        toast(res.added + '人を登録' +
+              (Number(res.updated) ? '、' + res.updated + '人にメールを追加' : ''));
+      }
       return;
     }
 
     if (act === 'save-member') {
       const id = btn.dataset.m;
-      const nm = document.querySelector('input[data-fld="name"][data-m="' + id + '"]').value;
-      const no = document.querySelector('input[data-fld="number"][data-m="' + id + '"]').value;
-      await call('admin_update_member', { p_member_id: id, p_name: nm, p_number: no, p_active: null });
-      toast('保存しました');
+      const get = (f) => document.querySelector('input[data-fld="' + f + '"][data-m="' + id + '"]').value;
+      if (busy) return;
+      busy = true;
+      document.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+      try {
+        // 名前・背番号とメールは窓口が別なので、続けて2回呼ぶ
+        await DB.rpc('admin_update_member', {
+          p_admin: admin, p_member_id: id,
+          p_name: get('name'), p_number: get('number'), p_active: null,
+        });
+        data = await DB.rpc('admin_set_member_email', {
+          p_admin: admin, p_member_id: id, p_email: get('email'),
+        });
+        render();
+        toast('保存しました');
+      } catch (err) {
+        toast(err.message, true);
+        document.querySelectorAll('button').forEach((b) => { b.disabled = false; });
+      } finally {
+        busy = false;
+      }
       return;
     }
 
@@ -547,15 +608,33 @@ label.f{display:block;font-size:11px;font-weight:700;color:var(--ink-3);
       return;
     }
 
-    if (act === 'copy-all') {
-      const yet = (data.members || []).filter((m) => m.active && !m.linked);
-      if (!yet.length) { toast('全員ログイン済みです', true); return; }
-      const body = ['【出欠の登録おねがいします】',
-                    '自分の名前のリンクを開いて、Googleでログインしてください。',
-                    '一度ログインすれば、次からはリンクを探さなくて済みます。', '']
-        .concat(yet.map((m) => m.name + '\n' + memberLink(m.token)))
-        .join('\n');
-      copyText(body, yet.length + '人分をコピーしました');
+    if (act === 'copy-invite') {
+      const base = linkBase().replace(/\/?$/, '/');
+      const body = [
+        '【' + (data.team || 'チーム') + '　出欠アプリのご案内】',
+        '',
+        'これまでのスプレッドシートの代わりに、出欠をここで登録できるようにしました。',
+        '',
+        '▼ ここを開いてください',
+        base + '?openExternalBrowser=1',
+        '',
+        '「Googleでログイン」を押してください。',
+        'そのあと合言葉を聞かれたら、これを入れて自分の名前を選んでください。',
+        '',
+        '合言葉：' + (data.join_code || ''),
+        '',
+        '※次からはURLを開くだけで自分の欄が出ます。',
+        '※出席のときは「車を出せるか」も聞かれます。',
+      ].join('\n');
+      copyText(body, 'LINE用の文面をコピーしました');
+      return;
+    }
+
+    if (act === 'reissue-code') {
+      if (!confirm('合言葉を作り直します。\n\n古い合言葉は使えなくなります。\n' +
+                   'まだ登録していない人には、新しい合言葉を配り直してください。よろしいですか？')) return;
+      await call('admin_reissue_join_code');
+      toast('作り直しました');
       return;
     }
   });
