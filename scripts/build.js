@@ -17,6 +17,7 @@ const dist = path.join(root, 'dist');
 
 // 公開してよいものだけを、ここに列挙する。増やすときは中身を確かめてから。
 const PUBLISH = ['index.html', 'admin.html', 'teian.html',
+                 'team.html', 'team.css', 'js/team.js', 'js/team-model.js',
                  'js/db.js', 'js/auth.js', 'config.local.js'];
 
 // 万一にも混ざってはいけないもの
@@ -40,6 +41,10 @@ try {
   process.exit(1);
 }
 
+if (path.resolve(dist) !== path.join(path.resolve(root), 'dist') ||
+    (fs.existsSync(dist) && fs.lstatSync(dist).isSymbolicLink())) {
+  throw new Error('公開出力先のパスを確認してください');
+}
 fs.rmSync(dist, { recursive: true, force: true });
 
 for (const rel of PUBLISH) {
@@ -57,7 +62,7 @@ for (const rel of PUBLISH) {
 const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
   e.isDirectory() ? walk(path.join(dir, e.name)) : [path.join(dir, e.name)]);
 
-const shipped = walk(dist).map((f) => path.relative(dist, f));
+const shipped = walk(dist).map((f) => path.relative(dist, f).split(path.sep).join('/'));
 
 for (const bad of NEVER) {
   if (shipped.includes(bad)) {
@@ -71,7 +76,7 @@ for (const bad of NEVER) {
 // ここで機械的に捕まえる。（DAY9 で js/auth.js を足し忘れた）
 for (const rel of shipped.filter((f) => f.endsWith('.html'))) {
   const html = fs.readFileSync(path.join(dist, rel), 'utf8');
-  for (const m of html.matchAll(/<script[^>]+src="(\.\/[^"]+)"/g)) {
+  for (const m of html.matchAll(/<(?:script|link)[^>]+(?:src|href)="(\.\/[^"]+)"/g)) {
     const ref = m[1].replace(/^\.\//, '');
     if (!shipped.includes(ref)) {
       console.error('足りません：' + rel + ' が ' + ref + ' を読み込んでいますが、');

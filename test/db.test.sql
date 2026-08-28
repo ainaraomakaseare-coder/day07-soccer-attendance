@@ -234,8 +234,6 @@ begin
     perform app_check_admin('なんでもいい');
   exception when insufficient_privilege then
     v_blocked := true;
-  when others then
-    v_blocked := true;
   end;
   if not v_blocked then
     raise exception '内部用の関数が外から呼べてしまう';
@@ -425,7 +423,7 @@ begin
   select join_code into v_code from team_config where id = 1;
   perform set_config('request.jwt.claim.sub', v_b::text, true);
   begin
-    perform roster_by_code('000000');
+    perform roster_by_code(case when v_code = '000000' then '000001' else '000000' end);
     raise exception 'FAIL: 違う合言葉が通った';
   exception when sqlstate '28000' then
     raise notice '31. 違う合言葉でははじかれる';

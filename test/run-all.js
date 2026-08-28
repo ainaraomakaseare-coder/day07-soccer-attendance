@@ -19,6 +19,13 @@ const PSQL = process.env.PSQL || 'psql';
 const FAKE = 'http://localhost:54321';
 const CONFIG = path.join(root, 'config.local.js');
 
+// この旧スイートは名簿・予定・auth.usersを削除する。明示した検証DB以外では実行しない。
+if (process.env.ALLOW_DESTRUCTIVE_TESTS !== 'local-test-only') {
+  console.error('旧テストは検証DBの全データを削除します。通常は npm test を使用してください。');
+  console.error('使い捨て検証DBを用意した場合だけ ALLOW_DESTRUCTIVE_TESTS=local-test-only を設定してください。');
+  process.exit(1);
+}
+
 function have(cmd, args) {
   try { execFileSync(cmd, args, { stdio: 'ignore' }); return true; } catch (e) { return false; }
 }

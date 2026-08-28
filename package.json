@@ -7,6 +7,10 @@
     "setup": "node scripts/setup-config.js",
     "build": "node scripts/build.js",
     "start": "node scripts/setup-config.js && node scripts/serve.js",
-    "test": "node test/run-all.js"
-  }
+    "test": "node --test test/team.test.js test/build.test.js",
+    "test:legacy": "node test/run-all.js",
+    "preview:test": "node test/team-preview.js",
+    "migration": "node scripts/prepare-migration.js"
+  },
+  "devDependencies": {"@electric-sql/pglite": "0.5.8"}
 }

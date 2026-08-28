@@ -115,6 +115,10 @@ insert into team_config (id, team_name, admin_token)
 values (1, 'わがチーム', replace(gen_random_uuid()::text, '-', ''))
 on conflict (id) do nothing;
 
+-- 初回作成でも合言葉を必ず生成する（既存の値は変えない）。
+update team_config set join_code = lpad((floor(random() * 1000000))::int::text, 6, '0')
+where id = 1 and join_code is null;
+
 
 -- ============================================================
 -- 4. 窓口になる関数
@@ -808,12 +812,12 @@ $$;
 -- 5. 内部用の関数は外から呼べないようにする
 -- ============================================================
 
-revoke execute on function app_member_of(text)        from anon, authenticated;
-revoke execute on function app_check_admin(text)      from anon, authenticated;
-revoke execute on function app_event_json(events,uuid) from anon, authenticated;
-revoke execute on function app_member_of_auth()        from anon, authenticated;
-revoke execute on function app_home_json(members)      from anon, authenticated;
-revoke execute on function app_auth_email()            from anon, authenticated;
+revoke execute on function app_member_of(text)        from public, anon, authenticated;
+revoke execute on function app_check_admin(text)      from public, anon, authenticated;
+revoke execute on function app_event_json(events,uuid) from public, anon, authenticated;
+revoke execute on function app_member_of_auth()        from public, anon, authenticated;
+revoke execute on function app_home_json(members)      from public, anon, authenticated;
+revoke execute on function app_auth_email()            from public, anon, authenticated;
 
 
 -- ============================================================

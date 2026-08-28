@@ -431,6 +431,7 @@ label.f{display:block;font-size:11px;font-weight:700;color:var(--ink-3);
     let h = '';
     h += '<div class="head"><h1 class="title">' + esc(data.team) + '<span>管理</span></h1>';
     h += '<button class="btn ghost sm" data-act="rename">名前変更</button></div>';
+    h += '<p><a class="btn" href="./team.html#admin=' + encodeURIComponent(admin) + '">チームノート管理（共同編集・会計・ジュニア）</a></p>';
 
     h += '<div class="tabs" role="tablist">';
     for (const [key, label] of [['events','予定'],['members','メンバー'],['links','リンク配布']]) {
