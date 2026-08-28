@@ -34,7 +34,7 @@ test('main-only UI hides junior entry and ignores previously selected junior gro
 test('publish whitelist includes team assets but never SQL, tests or secrets',()=>{
  // 空の一時コピーだけでビルドする。本番のconfig.local.jsやdistに触れない。
  const temp=fs.mkdtempSync(path.join(os.tmpdir(),'agape-build-test-'));
- const files=['index.html','admin.html','teian.html','team.html','team.css','js/export-template.js','js/export.js','js/db.js','js/auth.js','js/team.js','js/team-model.js','scripts/setup-config.js','scripts/build.js'];
+ const files=['index.html','admin.html','teian.html','privacy.html','team.html','team.css','js/export-template.js','js/export.js','js/db.js','js/auth.js','js/team.js','js/team-model.js','scripts/setup-config.js','scripts/build.js'];
  for(const f of files){const to=path.join(temp,f);fs.mkdirSync(path.dirname(to),{recursive:true});fs.copyFileSync(path.join(root,f),to);}
  const env={...process.env,SUPABASE_URL:'https://build-test.supabase.co',SUPABASE_ANON_KEY:'sb_publishable_build_test_not_real'};
  execFileSync(process.execPath,[path.join(temp,'scripts/build.js')],{env,stdio:'pipe'});
@@ -49,3 +49,4 @@ test('publish whitelist includes team assets but never SQL, tests or secrets',()
  assert.ok(target.startsWith(base)&&path.basename(target).startsWith('agape-build-test-'));
  fs.rmSync(target,{recursive:true,force:true});
 });
+
