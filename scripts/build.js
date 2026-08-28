@@ -21,8 +21,23 @@ const PUBLISH = ['index.html', 'admin.html', 'js/db.js', 'js/auth.js', 'config.l
 // 万一にも混ざってはいけないもの
 const NEVER = ['.env', '.env.local', '.env.production'];
 
+// 動いている場所と道具の版を最初に出す。
+// 公開サービス上で落ちたとき、ここが出ているかどうかで切り分けられる。
+console.log('build.js を開始します');
+console.log('  node      : ' + process.version);
+console.log('  作業場所  : ' + process.cwd());
+console.log('  接続先設定: SUPABASE_URL=' + (process.env.SUPABASE_URL ? 'あり' : 'なし') +
+            ' / SUPABASE_ANON_KEY=' + (process.env.SUPABASE_ANON_KEY ? 'あり' : 'なし'));
+
 // まず .env か環境変数から config.local.js を作る
-execFileSync(process.execPath, [path.join(__dirname, 'setup-config.js')], { stdio: 'inherit' });
+try {
+  execFileSync(process.execPath, [path.join(__dirname, 'setup-config.js')], { stdio: 'inherit' });
+} catch (e) {
+  // ここで生のスタックを出すと、本当の理由が埋もれる。
+  console.error('');
+  console.error('接続先の設定を作れませんでした。すぐ上の行に理由が出ています。');
+  process.exit(1);
+}
 
 fs.rmSync(dist, { recursive: true, force: true });
 

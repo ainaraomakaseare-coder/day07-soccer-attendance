@@ -16,3 +16,5 @@
 # service_role は一切使わないので、ここには決して書きません。
 [build.environment]
   SECRETS_SCAN_OMIT_KEYS = "SUPABASE_URL,SUPABASE_ANON_KEY"
+  # Netlify の既定の Node が古いと、ここのスクリプトが構文で落ちることがある。
+  NODE_VERSION = "22"
