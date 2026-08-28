@@ -54,7 +54,7 @@ function tidyUrl(u) {
   return out;
 }
 
-const url = tidyUrl(rawUrl);
+let url = tidyUrl(rawUrl);
 
 const missing = [];
 if (!url) missing.push('SUPABASE_URL');
@@ -86,10 +86,40 @@ if (key.includes('service_role') || key.startsWith('sb_secret_')) {
   process.exit(1);
 }
 
+// いちばん多い間違いは「2つの値を取り違える」こと。名指しで知らせる。
+if (/^(sb_|eyJ)/.test(url)) {
+  console.error('');
+  console.error('SUPABASE_URL に鍵らしき文字列が入っています。');
+  console.error('SUPABASE_URL と SUPABASE_ANON_KEY が入れ替わっていませんか。');
+  console.error('');
+  console.error('  SUPABASE_URL      … https://xxxxxxxx.supabase.co');
+  console.error('  SUPABASE_ANON_KEY … sb_publishable_… または eyJ… で始まるもの');
+  console.error('');
+  process.exit(1);
+}
+if (/^https?:\/\//.test(key)) {
+  console.error('');
+  console.error('SUPABASE_ANON_KEY に URL が入っています。');
+  console.error('SUPABASE_URL と SUPABASE_ANON_KEY が入れ替わっていませんか。');
+  console.error('');
+  process.exit(1);
+}
+
+// 「xxxxxxxx.supabase.co」のように https:// を落として貼られることが多い。
+// ホスト名だと分かる形なら、こちらで補う。
+if (url && !/^https?:\/\//.test(url) && /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(url)) {
+  console.log('SUPABASE_URL に https:// が無かったので補いました。');
+  url = 'https://' + url;
+}
+
 if (url && !/^https?:\/\//.test(url)) {
   console.error('');
-  console.error('SUPABASE_URL が https:// で始まっていません: ' + url);
-  console.error('Supabase の Settings → Data API にある Project URL を貼ってください。');
+  console.error('SUPABASE_URL が https:// で始まっていません。');
+  console.error('長さ ' + url.length + ' 文字、先頭は「' + url.slice(0, 4) + '」です。');
+  console.error('');
+  console.error('Supabase の Settings → Data API にある Project URL を、');
+  console.error('前後に余計な文字を付けずにそのまま貼ってください。');
+  console.error('  例: https://xxxxxxxx.supabase.co');
   console.error('');
   process.exit(1);
 }
