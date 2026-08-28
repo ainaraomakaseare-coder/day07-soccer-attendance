@@ -14,10 +14,11 @@ test('event Excel contains only attendees, protects text and paginates every 25'
 });
 test('main-only UI hides junior entry and ignores previously selected junior group',async()=>{
  const vm=require('node:vm');const source=fs.readFileSync(path.join(root,'js/team.js'),'utf8');
- async function page(hash){
+ async function page(hash,events=[]){
   const elements={app:{innerHTML:''},editor:{showModal(){},close(){}},fields:{innerHTML:''},'form-error':{textContent:''},'edit-form':{elements:{}},toast:{style:{},textContent:''}};
   const handlers={};let calls=0;
   const home={team:'検証チーム',scope:'all',members:[],events:[],answers:[],guests:[],history:[],notices:[],ledger:[],bibs:[],year_start_month:4,main_fee:300,main_opening:0,junior_fee:100,junior_opening:123,bib_guide:'保存対象'};
+  home.events=events;
   const context={console,URLSearchParams,Intl,Date,setTimeout,clearTimeout,location:{hash,pathname:'/team.html',origin:'http://localhost'},localStorage:{getItem:()=> 'junior',setItem(){}},document:{getElementById:id=>elements[id],querySelector:()=>({}),addEventListener:(name,fn)=>handlers[name]=fn},Auth:{absorbRedirect:()=>({}),loggedIn:()=>false},DB:{ready:()=>true,rpc:async()=>{calls++;return home;}}};
   context.window={TeamModel:require('../js/team-model'),addEventListener(){}};
   vm.runInNewContext(source,context);await new Promise(setImmediate);
@@ -30,6 +31,15 @@ test('main-only UI hides junior entry and ignores previously selected junior gro
  assert.ok(admin.elements.app.innerHTML.includes('メンバー用URLをコピー'));assert.ok(!admin.elements.app.innerHTML.includes('ジュニア'));
  await admin.handlers.click({target:{closest:()=>({dataset:{action:'settings-edit'}})}});
  assert.ok(!admin.elements.fields.innerHTML.includes('junior_fee'));
+ assert.ok(!admin.elements.app.innerHTML.includes('data-tab="notices"'));
+ const presets=await page('#admin='+'a'.repeat(32),[
+  {squad:'main',place:'会場B',start_time:'09:00:00',end_time:'11:00:00',event_date:'2026-01-01'},
+  ...[1,2].map(()=>({squad:'main',place:'会場A',start_time:'17:00:00',end_time:'19:00:00',event_date:'2026-01-01'})),
+  {squad:'junior',place:'対象外',event_date:'2026-01-01'}]);
+ await presets.handlers.click({target:{closest:()=>({dataset:{action:'event-new'}})}});
+ const html=presets.elements.fields.innerHTML;assert.ok(!html.includes('掃除の日'));assert.ok(!html.includes('対象外'));assert.ok(html.indexOf('value="会場A"')<html.indexOf('value="会場B"'));assert.equal(html.split('value="17:00|19:00"').length,2);
+ const f=presets.elements['edit-form'].elements;for(const name of ['place','start_time','end_time','place_preset','time_preset'])f[name]={value:''};
+ await presets.handlers.change({target:{name:'place_preset',value:'会場A',closest:()=>true}});assert.equal(f.place.value,'会場A');await presets.handlers.change({target:{name:'time_preset',value:'17:00|19:00',closest:()=>true}});assert.equal(f.start_time.value,'17:00');assert.equal(f.end_time.value,'19:00');
 });
 test('attendance choices only save on explicit confirmation; cancel keeps saved answer',async()=>{
  const vm=require('node:vm'),handlers={},calls=[],submit={};let opened=false;
@@ -41,7 +51,7 @@ test('attendance choices only save on explicit confirmation; cancel keeps saved 
  const click=dataset=>handlers.click({target:{closest:()=>({dataset})}});
  assert.ok(elements.app.innerHTML.includes('イベント一覧'));assert.ok(!elements.app.innerHTML.includes('data-action="quick"'));assert.ok(!elements.app.innerHTML.includes('data-tab="ledger"'));
  await click({action:'open-event',id:'e'});assert.ok(elements.app.innerHTML.includes('自分の出欠を登録・変更'));
- await click({action:'answer',ev:'e',mid:'m'});assert.equal(calls.length,1);await click({action:'close'});
+ await click({action:'answer',ev:'e',mid:'m'});assert.equal(calls.length,1);assert.ok(!elements.fields.innerHTML.includes('name="confirmed"'));assert.ok(!elements.fields.innerHTML.includes('伝達事項タブ'));await click({action:'close'});
  for(const status of ['no','yes','']){await click({action:'quick',ev:'e',status});assert.equal(opened,true);assert.equal(calls.length,1);assert.equal(submit.textContent,'確定する');assert.ok(elements.fields.innerHTML.includes(`value="${status}" selected`));await click({action:'close'});assert.equal(opened,false);assert.equal(home.answers[0].status,'yes');}
  for(const car of ['yes','no','bicycle']){await click({action:'quick-car',ev:'e',car});assert.equal(calls.length,1);assert.ok(elements.fields.innerHTML.includes(`value="${car}" selected`));await click({action:'close'});}
  await click({action:'quick',ev:'e',status:'no'});
@@ -67,4 +77,5 @@ test('publish whitelist includes team assets but never SQL, tests or secrets',()
  assert.ok(target.startsWith(base)&&path.basename(target).startsWith('agape-build-test-'));
  fs.rmSync(target,{recursive:true,force:true});
 });
+
 
