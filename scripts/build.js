@@ -16,7 +16,8 @@ const root = path.join(__dirname, '..');
 const dist = path.join(root, 'dist');
 
 // 公開してよいものだけを、ここに列挙する。増やすときは中身を確かめてから。
-const PUBLISH = ['index.html', 'admin.html', 'js/db.js', 'js/auth.js', 'config.local.js'];
+const PUBLISH = ['index.html', 'admin.html', 'teian.html',
+                 'js/db.js', 'js/auth.js', 'config.local.js'];
 
 // 万一にも混ざってはいけないもの
 const NEVER = ['.env', '.env.local', '.env.production'];
