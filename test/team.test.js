@@ -38,14 +38,19 @@ test('main identity, junior scope, vehicle memory and guest permissions',async(t
   await assert.rejects(write('answer',{event_id:eid,member_id:mid,status:'yes',car:'yes'}),/ナンバー/);
   await assert.rejects(write('answer',{event_id:eid,member_id:mid,status:'yes',car:'yes',vehicle_plate:'1234'}),/ナンバー/);
   let h=await write('answer',{event_id:eid,member_id:mid,status:'yes',car:'yes',vehicle_plate:'横浜 300 あ 1234'});
-  assert.equal(h.me.vehicle_plate,'横浜 300 あ 1234');assert.equal(h.answers.find(a=>a.member_id===mid).vehicle_plate,h.me.vehicle_plate);
+  assert.equal(h.me.vehicle_plate,undefined);assert.equal(h.me.has_vehicle_plate,true);assert.ok(!JSON.stringify(h).includes('横浜 300 あ 1234'));assert.equal((await home('admin')).answers.find(a=>a.member_id===mid).vehicle_plate,'横浜 300 あ 1234');
   assert.equal(h.history[0].actor,'本人');
   h=await home('other');assert.equal(h.answers.find(a=>a.member_id===mid).vehicle_plate,undefined);assert.ok(!JSON.stringify(h.history).includes('横浜 300 あ 1234'));
-  h=await write('answer',{event_id:eid,member_id:mid,status:'no'});assert.equal(h.me.vehicle_plate,'横浜 300 あ 1234');assert.equal(h.answers[0].vehicle_plate,'');
+  h=await write('answer',{event_id:eid,member_id:mid,status:'no'});assert.equal(h.me.vehicle_plate,undefined);assert.equal(h.me.has_vehicle_plate,true);assert.equal(h.answers[0].vehicle_plate,undefined);
   const hist=h.history[0].id;
   await assert.rejects(write('undo_answer',{history_id:hist},'other'),/自分/);
-  h=await write('undo_answer',{history_id:hist});assert.equal(h.answers[0].vehicle_plate,'横浜 300 あ 1234');
+  h=await write('undo_answer',{history_id:hist});assert.equal(h.answers[0].vehicle_plate,undefined);assert.equal((await home('admin')).answers.find(a=>a.member_id===mid).vehicle_plate,'横浜 300 あ 1234');await write('answer',{event_id:eid,member_id:mid,status:'yes',car:'yes'});
   h=await write('answer',{event_id:eid,member_id:other,status:'yes'},'admin');assert.ok(h.answers.some(a=>a.member_id===other));
+ });
+ await t.test('financial values and history are only returned to administrators',async()=>{
+  await write('ledger',{squad:'main',entry_date:'2026-09-01',description:'非公開の会計',expense:9876,fee:300,people:2},'admin');
+  const ah=await home('admin');assert.ok(ah.ledger.length);assert.ok(ah.history.some(h=>h.action==='ledger'));
+  for(const mode of ['main','other','junior']){const h=await home(mode);assert.deepEqual(h.ledger,[]);assert.equal(h.main_opening,undefined);assert.equal(h.main_fee,undefined);assert.ok(!JSON.stringify(h).includes('非公開の会計'));assert.ok(!h.history.some(x=>['ledger','delete_ledger','settings'].includes(x.action)));}
  });
  await t.test('stale versions rejected on main and notices belong to self',async()=>{
   const h=await home();await write('answer',{event_id:eid,member_id:mid,status:'yes',car:'no'});
@@ -56,7 +61,7 @@ test('main identity, junior scope, vehicle memory and guest permissions',async(t
  });
  await t.test('guest creator is authenticated inviter; only creator/admin edits',async()=>{
   let h=await write('guest',{event_id:eid,name:'助っ人',invited_by:'偽装',status:'yes',car:true,vehicle_plate:'横浜 500 い 5678'});
-  const g=h.guests[0];assert.equal(g.created_by,mid);assert.equal(g.invited_by,'本人');
+  assert.ok(!JSON.stringify(h).includes('横浜 500 い 5678'));const g=h.guests[0];assert.equal(g.created_by,mid);assert.equal(g.invited_by,'本人');
   await assert.rejects(write('guest',{...g,name:'書き換え'},'other'),/追加者/);
   assert.equal((await home('other')).guests[0].vehicle_plate,undefined);
   h=await write('guest',{...g,note:'集合確認'});assert.equal(h.guests[0].note,'集合確認');

@@ -78,20 +78,21 @@ begin
  select coalesce(jsonb_agg(x),'[]'::jsonb) into event_ids from jsonb_array_elements(result->'events') x where scope='all' or x->>'squad'=scope;
  result:=result||jsonb_build_object('scope',scope,'events',event_ids,
   'can_admin',coalesce(me.is_admin,false),
-  'me',case when me.id is not null then jsonb_build_object('id',me.id,'name',me.name,'vehicle_plate',me.vehicle_plate) else null end,
+  'me',case when me.id is not null then jsonb_build_object('id',me.id,'name',me.name,'has_vehicle_plate',me.vehicle_plate<>'') || case when p_admin is true then jsonb_build_object('vehicle_plate',me.vehicle_plate) else '{}'::jsonb end else null end,
   'members',coalesce((select jsonb_agg(x || case when p_admin is true then
     jsonb_build_object('email',m.email,'vehicle_plate',m.vehicle_plate) else '{}'::jsonb end)
     from jsonb_array_elements(result->'members') x join members m on m.id=(x->>'id')::uuid where scope='all' or m.squad=scope),'[]'::jsonb),
-  'answers',coalesce((select jsonb_agg(case when p_admin is true or x->>'member_id'=me.id::text then x else x-'vehicle_plate' end)
+  'answers',coalesce((select jsonb_agg(case when p_admin is true then x else (x-'vehicle_plate')||jsonb_build_object('has_vehicle_plate',coalesce(x->>'vehicle_plate','')<>'') end)
     from jsonb_array_elements(result->'answers') x where exists(select 1 from jsonb_array_elements(event_ids) e where e->>'id'=x->>'event_id')),'[]'::jsonb),
-  'guests',coalesce((select jsonb_agg(case when p_admin is true or x->>'created_by'=me.id::text then x else x-'vehicle_plate' end)
+  'guests',coalesce((select jsonb_agg(case when p_admin is true then x else (x-'vehicle_plate')||jsonb_build_object('has_vehicle_plate',coalesce(x->>'vehicle_plate','')<>'') end)
     from jsonb_array_elements(result->'guests') x where exists(select 1 from jsonb_array_elements(event_ids) e where e->>'id'=x->>'event_id')),'[]'::jsonb),
   'notices',coalesce((select jsonb_agg(x) from jsonb_array_elements(result->'notices') x where scope='all' or x->>'squad'=scope),'[]'::jsonb),
-  'ledger',coalesce((select jsonb_agg(x) from jsonb_array_elements(result->'ledger') x where scope='all' or x->>'squad'=scope),'[]'::jsonb),
+  'ledger',case when p_admin is not true then '[]'::jsonb else coalesce((select jsonb_agg(x) from jsonb_array_elements(result->'ledger') x where scope='all' or x->>'squad'=scope),'[]'::jsonb) end,
   'bibs',case when scope='main' then '[]'::jsonb else result->'bibs' end,
   'history',coalesce((select jsonb_agg(case when p_admin is true then x else x||jsonb_build_object('before_value',nullif(x->'before_value','null'::jsonb)-'vehicle_plate','after_value',nullif(x->'after_value','null'::jsonb)-'vehicle_plate') end)
-    from jsonb_array_elements(result->'history') x where p_admin is true or x->>'squad'=scope),'[]'::jsonb));
+    from jsonb_array_elements(result->'history') x where p_admin is true or (x->>'squad'=scope and x->>'action' not in ('ledger','delete_ledger','settings'))),'[]'::jsonb));
  if p_admin is true then result:=result||jsonb_build_object('registration_code',(select registration_code from team_config where id=1)); end if;
+ if p_admin is not true then result:=result-'main_opening'-'junior_opening'-'main_fee'-'junior_fee'; end if;
  return result;
 end $$;
 
@@ -150,8 +151,8 @@ begin
   target_member:=(p_data->>'member_id')::uuid;
   if coalesce((p_data->>'uses_bicycle')::boolean,false) and p_data->>'car'='yes' then raise exception '車と自転車はどちらかを選んでください'; end if;
   if p_data->>'status'='yes' and p_data->>'car'='yes' and (select asks_car from events where id=target_event) then
-   -- 番号を勝手に流用しない。画面で前回値を提示して保存する。
-   plate:=app_validate_plate(p_data->>'vehicle_plate');
+   -- 非管理者には番号を返さず、未入力なら本人の保存済み番号を使用する。
+   plate:=app_validate_plate(coalesce(nullif(trim(p_data->>'vehicle_plate'),''),(select nullif(vehicle_plate,'') from attendance where member_id=target_member and event_id=target_event),(select vehicle_plate from members where id=target_member)));
   end if;
  end if;
  if p_action='guest' then
@@ -162,7 +163,7 @@ begin
   end if;
   if scope='main' then p_data:=p_data||jsonb_build_object('invited_by',case when item is null then me.name else g.invited_by end); end if;
   if coalesce(p_data->>'status','yes')='yes' and coalesce((p_data->>'car')::boolean,false) and (select asks_car from events where id=target_event) then
-   plate:=app_validate_plate(p_data->>'vehicle_plate');
+   plate:=app_validate_plate(coalesce(nullif(trim(p_data->>'vehicle_plate'),''),g.vehicle_plate));
   end if;
  end if;
  result:=app_team_write_core(p_key,p_admin,p_version,actual_actor,p_action,p_data);
@@ -250,3 +251,4 @@ begin
 end $$;
 revoke all on function admin_registration_code(text,text) from public;
 grant execute on function admin_registration_code(text,text) to anon,authenticated;
+
