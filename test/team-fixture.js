@@ -15,7 +15,7 @@ async function createDB(beforeMigration){
  return db;
 }
 async function rpc(db,fn,args,userId=''){
- const allowed={team_home:['p_key','p_admin'],team_write:['p_key','p_admin','p_version','p_actor','p_action','p_data'],admin_shared_link:['p_admin']};
+ const allowed={team_home:['p_key','p_admin'],team_write:['p_key','p_admin','p_version','p_actor','p_action','p_data'],admin_shared_link:['p_admin'],join_main:['p_code','p_name'],admin_registration_code:['p_admin','p_code']};
  if(!allowed[fn])throw new Error('Unsupported test RPC');
  const names=allowed[fn].filter(n=>Object.hasOwn(args,n));
  const sql=`select ${fn}(${names.map((n,i)=>`${n} => $${i+1}`).join(',')}) as result`;

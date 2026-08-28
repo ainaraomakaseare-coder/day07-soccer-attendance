@@ -17,7 +17,7 @@ const dist = path.join(root, 'dist');
 
 // 公開してよいものだけを、ここに列挙する。増やすときは中身を確かめてから。
 const PUBLISH = ['index.html', 'admin.html', 'teian.html',
-                 'team.html', 'team.css', 'js/team.js', 'js/team-model.js',
+                 'team.html', 'team.css','js/export-template.js','js/export.js', 'js/team.js', 'js/team-model.js',
                  'js/db.js', 'js/auth.js', 'config.local.js'];
 
 // 万一にも混ざってはいけないもの

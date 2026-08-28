@@ -68,6 +68,44 @@ test('main identity, junior scope, vehicle memory and guest permissions',async(t
   assert.ok(!JSON.stringify(await home()).includes('@example.com'));
   assert.ok(!JSON.stringify(await home('junior')).includes('@example.com'));
  });
+ await t.test('Google admin role grants management, records real actor and cannot be self-granted',async()=>{
+  const manage=(id)=>rpc(db,'team_home',{p_key:'',p_admin:true},id);
+  await assert.rejects(manage(uid),/管理者/);
+  await assert.rejects(manage(otherUid),/管理者/);
+  await db.query('update members set is_admin=true where id=$1',[mid]);
+  assert.equal((await home()).can_admin,true);
+  let h=await manage(uid);assert.equal(h.me.id,mid);assert.equal(h.scope,'all');
+  h=await rpc(db,'team_write',{p_key:'',p_admin:true,p_version:h.version,p_actor:'偽装',p_action:'answer',p_data:{event_id:eid,member_id:other,status:'no'}},uid);
+  assert.equal(h.answers.find(a=>a.member_id===other).status,'no');assert.equal(h.history[0].actor,'本人');
+  await write('member',{id:other,squad:'main',name:'別の人',is_admin:true},'admin');
+  assert.equal((await home('other')).can_admin,false);await assert.rejects(manage(otherUid),/管理者/);
+  await db.query('update members set is_admin=false where id=$1',[mid]);
+  await assert.rejects(manage(uid),/管理者/);
+ });
+ await t.test('4 digit self-registration is authenticated, rate-limited, private and idempotent',async()=>{
+  const newUid='33333333-3333-4333-8333-333333333333';
+  await db.query("insert into auth.users(id,email) values($1,'new@example.com')",[newUid]);
+  const code=(await home('admin')).registration_code;assert.match(code,/^\d{4}$/);
+  assert.equal((await home()).registration_code,undefined);
+  const bad=code==='0000'?'0001':'0000';
+  await assert.rejects(rpc(db,'join_main',{p_code:code,p_name:'新規'}));
+  for(let i=0;i<5;i++)assert.equal((await rpc(db,'join_main',{p_code:bad,p_name:'新規'},newUid)).ok,false);
+  let r=await rpc(db,'join_main',{p_code:code,p_name:'新規'},newUid);assert.match(r.error,/15分/);
+  await db.query("update team_signup_attempts set window_start=now()-interval '16 minutes' where user_id=$1",[newUid]);
+  r=await rpc(db,'join_main',{p_code:code,p_name:'本人'},newUid);assert.match(r.error,/同じ名前/);
+  r=await rpc(db,'join_main',{p_code:code,p_name:'新規'},newUid);assert.equal(r.ok,true);assert.equal(r.home.can_admin,false);
+  const id=r.home.me.id;
+  r=await rpc(db,'join_main',{p_code:code,p_name:'別名'},newUid);assert.equal(r.home.me.id,id);assert.equal(r.home.me.name,'新規');
+  await assert.rejects(rpc(db,'admin_registration_code',{p_admin:'',p_code:'5678'},newUid),/管理者/);
+  const changed=await rpc(db,'admin_registration_code',{p_admin:c.admin_token,p_code:'5678'});assert.equal(changed.registration_code,'5678');
+  await assert.rejects(rpc(db,'admin_registration_code',{p_admin:c.admin_token,p_code:'12345'}),/4桁/);
+ });
+ await t.test('bicycle replies persist, clear on absence and restore with undo',async()=>{
+  let h=await write('answer',{event_id:eid,member_id:mid,status:'yes',car:'no',uses_bicycle:true});assert.equal(h.answers.find(a=>a.member_id===mid).uses_bicycle,true);
+  await assert.rejects(write('answer',{event_id:eid,member_id:mid,status:'yes',car:'yes',uses_bicycle:true,vehicle_plate:'横浜 300 あ 1234'}),/どちらか/);
+  h=await write('answer',{event_id:eid,member_id:mid,status:'no',uses_bicycle:true});assert.equal(h.answers.find(a=>a.member_id===mid).uses_bicycle,false);
+  h=await write('undo_answer',{history_id:h.history[0].id});assert.equal(h.answers.find(a=>a.member_id===mid).uses_bicycle,true);
+ });
 });
 test('old four-table database upgrades without losing membership, answers or management key',async(t)=>{
  const db=await createDB(async(old)=>{

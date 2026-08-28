@@ -5,6 +5,34 @@ alter table attendance add column if not exists vehicle_plate text not null defa
 alter table team_guests add column if not exists vehicle_plate text not null default '';
 alter table team_guests add column if not exists created_by uuid references members(id) on delete set null;
 alter table team_history add column if not exists squad text;
+alter table members add column if not exists is_admin boolean not null default false;
+alter table members add column if not exists preferred_position text not null default '';
+alter table members add column if not exists position_note text not null default '';
+alter table attendance add column if not exists uses_bicycle boolean not null default false;
+alter table team_guests add column if not exists uses_bicycle boolean not null default false;
+alter table team_config add column if not exists registration_code text;
+update team_config set registration_code=lpad(((('x'||substr(replace(gen_random_uuid()::text,'-',''),1,8))::bit(32)::bigint)%10000)::text,4,'0') where registration_code is null;
+create table if not exists team_signup_attempts (
+ user_id uuid primary key references auth.users(id) on delete cascade,
+ attempts integer not null default 0,
+ window_start timestamptz not null default now()
+);
+alter table team_signup_attempts enable row level security;
+revoke all on team_signup_attempts from public,anon,authenticated;
+
+-- 管理鍵に加え、明示的に管理者に指定されたGoogle本人を認可する。
+create or replace function app_check_admin(p_admin text) returns void
+language plpgsql stable security definer set search_path=public,pg_temp as $$
+begin
+ if coalesce(p_admin,'')<>'' and exists(select 1 from team_config where id=1 and admin_token=p_admin) then return; end if;
+ if coalesce(p_admin,'')='' and auth.uid() is not null and exists(
+  select 1 from members m join auth.users u on u.id=auth.uid()
+  where m.active and m.squad='main' and m.is_admin and
+   (m.auth_user_id=u.id or (m.auth_user_id is null and u.email_confirmed_at is not null and lower(m.email)=lower(trim(u.email))))
+ ) then return; end if;
+ raise exception '管理者権限がありません' using errcode='28000';
+end $$;
+revoke all on function app_check_admin(text) from public,anon,authenticated;
 
 create or replace function app_main_member() returns members
 language plpgsql security definer set search_path=public,pg_temp as $$
@@ -44,12 +72,13 @@ declare result jsonb; me members; scope text; event_ids jsonb;
 begin
  perform app_team_access(p_key,p_admin);
  scope:=case when p_admin is true then 'all' when coalesce(p_key,'')<>'' then 'junior' else 'main' end;
- if scope='main' then me:=app_main_member(); end if;
+ if scope='main' or (p_admin is true and coalesce(p_key,'')='') then me:=app_main_member(); end if;
  result:=app_team_home_core(p_key,p_admin);
  -- 認証されていないジュニア利用者にメインの名簿/出欠/履歴を返さない。
  select coalesce(jsonb_agg(x),'[]'::jsonb) into event_ids from jsonb_array_elements(result->'events') x where scope='all' or x->>'squad'=scope;
  result:=result||jsonb_build_object('scope',scope,'events',event_ids,
-  'me',case when scope='main' then jsonb_build_object('id',me.id,'name',me.name,'vehicle_plate',me.vehicle_plate) else null end,
+  'can_admin',coalesce(me.is_admin,false),
+  'me',case when me.id is not null then jsonb_build_object('id',me.id,'name',me.name,'vehicle_plate',me.vehicle_plate) else null end,
   'members',coalesce((select jsonb_agg(x || case when p_admin is true then
     jsonb_build_object('email',m.email,'vehicle_plate',m.vehicle_plate) else '{}'::jsonb end)
     from jsonb_array_elements(result->'members') x join members m on m.id=(x->>'id')::uuid where scope='all' or m.squad=scope),'[]'::jsonb),
@@ -62,6 +91,7 @@ begin
   'bibs',case when scope='main' then '[]'::jsonb else result->'bibs' end,
   'history',coalesce((select jsonb_agg(case when p_admin is true then x else x||jsonb_build_object('before_value',nullif(x->'before_value','null'::jsonb)-'vehicle_plate','after_value',nullif(x->'after_value','null'::jsonb)-'vehicle_plate') end)
     from jsonb_array_elements(result->'history') x where p_admin is true or x->>'squad'=scope),'[]'::jsonb));
+ if p_admin is true then result:=result||jsonb_build_object('registration_code',(select registration_code from team_config where id=1)); end if;
  return result;
 end $$;
 
@@ -84,10 +114,10 @@ declare me members; scope text; target_scope text; target_member uuid; target_ev
 begin
  perform app_team_access(p_key,p_admin);
  scope:=case when p_admin is true then 'all' when coalesce(p_key,'')<>'' then 'junior' else 'main' end;
- if scope='main' then me:=app_main_member(); end if;
+ if scope='main' or (p_admin is true and coalesce(p_key,'')='') then me:=app_main_member(); end if;
  select data_version into v from team_config where id=1 for update;
  if p_version is distinct from v then raise exception '他の人の変更があります。更新してからもう一度入力してください' using errcode='40001'; end if;
- actual_actor:=case when scope='main' then me.name else p_actor end;
+ actual_actor:=case when me.id is not null then me.name else p_actor end;
  item:=nullif(p_data->>'id','')::uuid;
  target_scope:=p_data->>'squad';
  if p_action='member' and item is not null then select squad into target_scope from members where id=item; end if;
@@ -118,12 +148,14 @@ begin
  end if;
  if p_action='answer' then
   target_member:=(p_data->>'member_id')::uuid;
+  if coalesce((p_data->>'uses_bicycle')::boolean,false) and p_data->>'car'='yes' then raise exception '車と自転車はどちらかを選んでください'; end if;
   if p_data->>'status'='yes' and p_data->>'car'='yes' and (select asks_car from events where id=target_event) then
    -- 番号を勝手に流用しない。画面で前回値を提示して保存する。
    plate:=app_validate_plate(p_data->>'vehicle_plate');
   end if;
  end if;
  if p_action='guest' then
+  if coalesce((p_data->>'uses_bicycle')::boolean,false) and coalesce((p_data->>'car')::boolean,false) then raise exception '車と自転車はどちらかを選んでください'; end if;
   if item is not null then
    select * into g from team_guests where id=item;
    if scope='main' and g.created_by is distinct from me.id then raise exception 'このゲストの修正は追加者または管理者が行えます' using errcode='42501'; end if;
@@ -137,16 +169,16 @@ begin
  select max(id) into h_id from team_history;
  update team_history set squad=target_scope where id=h_id;
  if p_action='answer' then
-  update attendance set vehicle_plate=plate where member_id=target_member and event_id=target_event;
+  update attendance set vehicle_plate=plate,uses_bicycle=(status='yes' and coalesce((p_data->>'uses_bicycle')::boolean,false)) where member_id=target_member and event_id=target_event;
   if plate<>'' then update members set vehicle_plate=plate where id=target_member; end if;
   update team_history set after_value=(select to_jsonb(a) from attendance a where member_id=target_member and event_id=target_event) where id=h_id;
  elsif p_action='guest' then
   item:=(select (after_value->>'id')::uuid from team_history where id=h_id);
-  update team_guests set vehicle_plate=plate,created_by=case when p_data->>'id' is null and scope='main' then me.id else created_by end where id=item;
+  update team_guests set vehicle_plate=plate,uses_bicycle=(status='yes' and coalesce((p_data->>'uses_bicycle')::boolean,false)),created_by=case when p_data->>'id' is null and scope='main' then me.id else created_by end where id=item;
   update team_history set after_value=(select to_jsonb(x) from team_guests x where id=item) where id=h_id;
  elsif p_action='undo_answer' then
   original_plate:=coalesce(hist.before_value->>'vehicle_plate','');
-  update attendance set vehicle_plate=case when car='yes' then original_plate else '' end where event_id=target_event and member_id=target_member;
+  update attendance set vehicle_plate=case when car='yes' then original_plate else '' end,uses_bicycle=coalesce((hist.before_value->>'uses_bicycle')::boolean,false) where event_id=target_event and member_id=target_member;
   update team_history set after_value=(select to_jsonb(a) from attendance a where member_id=target_member and event_id=target_event) where id=h_id;
  elsif p_action='event' then
   item:=(select (after_value->>'id')::uuid from team_history where id=h_id);
@@ -169,3 +201,52 @@ revoke execute on function member_home(text),set_status(text,uuid,text,text),eve
  claim_member(text),roster_by_code(text),claim_member_by_code(text,uuid),
  me_home(),me_set_status(uuid,text,text),me_event_detail(uuid),me_set_name(text)
  from public,anon,authenticated;
+
+-- Google本人＋4桁コードで新規登録。誤入力回数は例外で戻さずDBに記録する。
+create or replace function join_main(p_code text,p_name text) returns jsonb
+language plpgsql security definer set search_path=public,pg_temp as $$
+declare uid uuid:=auth.uid(); mail text; n text:=trim(p_name); a team_signup_attempts; m members; code text;
+begin
+ if uid is null then raise exception 'Googleログインが必要です' using errcode='28000'; end if;
+ select lower(trim(email)) into mail from auth.users where id=uid and email_confirmed_at is not null;
+ if mail is null then raise exception '確認済みのGoogleアカウントでログインしてください' using errcode='28000'; end if;
+ insert into team_signup_attempts(user_id) values(uid) on conflict do nothing;
+ select * into a from team_signup_attempts where user_id=uid for update;
+ if a.window_start < now()-interval '15 minutes' then
+  update team_signup_attempts set attempts=0,window_start=now() where user_id=uid; a.attempts:=0;
+ end if;
+ if a.attempts>=5 then return jsonb_build_object('ok',false,'error','入力回数の上限です。15分後にやり直してください'); end if;
+ select registration_code into code from team_config where id=1 for update;
+ select * into m from members where auth_user_id=uid or lower(email)=mail;
+ if found then
+  if m.active and m.squad='main' and (m.auth_user_id is null or m.auth_user_id=uid) then
+   return jsonb_build_object('ok',true,'home',team_home('',false));
+  end if;
+  return jsonb_build_object('ok',false,'error','このアカウントの登録は管理者に確認してください');
+ end if;
+ if p_code is null or p_code !~ '^[0-9]{4}$' or p_code<>code then
+  update team_signup_attempts set attempts=attempts+1 where user_id=uid;
+  return jsonb_build_object('ok',false,'error','参加コードを確認してください');
+ end if;
+ if n is null or length(n) not between 1 and 80 then return jsonb_build_object('ok',false,'error','名前を1〜80文字で入力してください'); end if;
+ if exists(select 1 from members where squad='main' and regexp_replace(name,'[[:space:]　]+','','g')=regexp_replace(n,'[[:space:]　]+','','g')) then
+  return jsonb_build_object('ok',false,'error','同じ名前が名簿にあります。重複登録を避けるため管理者に確認してください');
+ end if;
+ insert into members(name,email,auth_user_id,token,squad,member_role,sort_order)
+ values(n,mail,uid,replace(gen_random_uuid()::text,'-',''),'main','player',coalesce((select max(sort_order)+1 from members),1)) returning * into m;
+ insert into team_history(actor,action,entity,after_value,squad) values(n,'member','member:'||m.id,jsonb_build_object('id',m.id,'name',n,'squad','main'),'main');
+ return jsonb_build_object('ok',true,'home',team_home('',false));
+end $$;
+revoke all on function join_main(text,text) from public,anon;
+grant execute on function join_main(text,text) to authenticated;
+
+create or replace function admin_registration_code(p_admin text,p_code text) returns jsonb
+language plpgsql security definer set search_path=public,pg_temp as $$
+begin
+ perform app_check_admin(p_admin);
+ if p_code is null or p_code !~ '^[0-9]{4}$' then raise exception '参加コードは半角数字4桁で入力してください'; end if;
+ update team_config set registration_code=p_code,data_version=data_version+1 where id=1;
+ return team_home(p_admin,true);
+end $$;
+revoke all on function admin_registration_code(text,text) from public;
+grant execute on function admin_registration_code(text,text) to anon,authenticated;
