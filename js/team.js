@@ -74,6 +74,8 @@
   if(type==='bib'){title='ビブスの貸出・返却';html=field('number','ビブス番号',v.number,'text',{required:true,maxlength:20})+select('member_id','貸出先',v.member_id||'',[['','未指定'],...data.members.filter(m=>m.squad==='junior'&&m.active).map(m=>[m.id,m.name])])+select('state','状態',v.state||'available',[['available','未貸出'],['loaned','貸出中'],['return_due','回収予定'],['returned','返却済み']])+field('loan_date','貸出日',v.loan_date,'date')+field('return_date','返却日',v.return_date,'date')+area('note','備考',v.note);}
   if(type==='registration-code'){title='参加コードを変更';html=field('code','数字4桁の参加コード',data.registration_code,'text',{required:true,maxlength:4});}
   if(type==='settings'){title='設定を変更';html=field('year_start_month','年度の起算月',data.year_start_month,'number',{required:true,min:1,max:12})+field('main_fee','メイン参加費の初期値',data.main_fee,'number',{required:true,min:0,max:1000000})+field('main_opening','メイン開始残高',data.main_opening,'number',{required:true});}
+  if(type==='answer'){const ev=data.events.find(e=>e.id===extra.ev);html=`<p class="wide">${esc(dateLabel(ev.event_date))} ${esc(ev.place)}<br><strong>まだ保存されていません。「確定する」で反映します。</strong></p>`+html;}
+  document.querySelector('#edit-form button[type="submit"]').textContent=type==='answer'?'確定する':'保存する';
   fields.innerHTML=`<h2>${esc(title)}</h2>${html}${data.me?'':field('input_actor','入力する人（履歴用）',actor,'text',{required:true,maxlength:80,wide:true})}`;document.getElementById('form-error').textContent='';dialog.showModal();syncPlate();
  }
  async function load(){data=await DB.rpc('team_home',{p_key:key,p_admin:admin},!key);squad='main';selected=data.me?.id||'';if(data.me)actor=data.me.name;render();}
@@ -120,8 +122,7 @@
    if(a==='open-event'){eventId=id;render();return;}
    if(a==='event-back'){eventId='';render();return;}
    if(a==='quick'||a==='quick-car'){const mid=data.me?.id||b.dataset.mid||selected,old=answer(b.dataset.ev,mid)||{};
-    if(a==='quick-car'&&b.dataset.car==='yes'){openForm('answer',{...old,status:'yes',car:'yes',uses_bicycle:false},{ev:b.dataset.ev,mid});return;}
-    await write('answer',{member_id:mid,event_id:b.dataset.ev,status:a==='quick'?b.dataset.status:old.status||'yes',uses_bicycle:a==='quick-car'?b.dataset.car==='bicycle':!!old.uses_bicycle,car:a==='quick-car'?(b.dataset.car==='bicycle'?'no':b.dataset.car):old.car||'',vehicle_plate:old.vehicle_plate||'',note:old.note||'',confirmed:old.confirmed||false});return;}
+    openForm('answer',{...old,status:a==='quick'?b.dataset.status:'yes',uses_bicycle:a==='quick-car'?b.dataset.car==='bicycle':!!old.uses_bicycle,car:a==='quick-car'?(b.dataset.car==='bicycle'?'no':b.dataset.car):old.car||''},{ev:b.dataset.ev,mid});return;}
    if(a==='member-new')openForm('member');
    if(a==='member-edit')openForm('member',data.members.find(m=>m.id===id));
    if(a==='archive'&&confirm('このメンバーの利用状態を変更します。過去の出欠記録は残します。'))await write('archive_member',{id,active:b.dataset.active==='true'});
