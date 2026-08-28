@@ -8,3 +8,11 @@
 [build]
   command = "npm run build"
   publish = "dist"
+
+# Netlify は「環境変数の値が公開ファイルに出てきたら鍵の流出だ」と判断して
+# ビルドを止めます。ところがこのアプリは anon キーを意図的にブラウザへ配ります
+# （守っているのは鍵の秘密ではなく、データベース側の RLS。README を参照）。
+# そのままだと必ず止まるので、この2つは見逃すよう伝えます。
+# service_role は一切使わないので、ここには決して書きません。
+[build.environment]
+  SECRETS_SCAN_OMIT_KEYS = "SUPABASE_URL,SUPABASE_ANON_KEY"

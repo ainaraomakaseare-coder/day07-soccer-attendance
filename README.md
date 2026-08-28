@@ -293,6 +293,12 @@ dist/config.local.js
 
 GitHub と繋いで「push したら自動で公開」にしたい場合は、`netlify.toml` を用意してあります。Netlify の管理画面の **Environment variables** に `SUPABASE_URL` と `SUPABASE_ANON_KEY` を登録してください。公開のたびにそこから読み取って `config.local.js` を作るので、**接続情報を GitHub に置く必要はありません。**
 
+> **Netlify の鍵検査に引っかかります。** Netlify には「環境変数の値が公開ファイルに出てきたら
+> 流出とみなしてビルドを止める」仕組みがあります。このアプリは anon キーを**意図的に**
+> ブラウザへ配るので、そのままだと必ず止まります。
+> `netlify.toml` の `SECRETS_SCAN_OMIT_KEYS` で、この2つだけ見逃すようにしてあります。
+> （守っているのは鍵の秘密ではなく RLS です。上の「anon キーはブラウザに出ます」を参照）
+
 ### 公開したら、最後にひとつ
 
 管理画面の**リンク配布**タブを開き、いちばん上の「公開先のURL」に、もらった住所（`https://○○○.netlify.app`）を入れて保存してください。個人リンクがその住所で作られるようになります。
