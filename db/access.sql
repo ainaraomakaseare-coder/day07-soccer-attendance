@@ -80,7 +80,7 @@ begin
   'can_admin',coalesce(me.is_admin,false),
   'me',case when me.id is not null then jsonb_build_object('id',me.id,'name',me.name,'has_vehicle_plate',me.vehicle_plate<>'') || case when p_admin is true then jsonb_build_object('vehicle_plate',me.vehicle_plate) else '{}'::jsonb end else null end,
   'members',coalesce((select jsonb_agg(x || case when p_admin is true then
-    jsonb_build_object('email',m.email,'vehicle_plate',m.vehicle_plate) else '{}'::jsonb end)
+    jsonb_build_object('email',m.email,'vehicle_plate',m.vehicle_plate,'is_admin',m.is_admin) else '{}'::jsonb end)
     from jsonb_array_elements(result->'members') x join members m on m.id=(x->>'id')::uuid where scope='all' or m.squad=scope),'[]'::jsonb),
   'answers',coalesce((select jsonb_agg(case when p_admin is true then x else (x-'vehicle_plate')||jsonb_build_object('has_vehicle_plate',coalesce(x->>'vehicle_plate','')<>'') end)
     from jsonb_array_elements(result->'answers') x where exists(select 1 from jsonb_array_elements(event_ids) e where e->>'id'=x->>'event_id')),'[]'::jsonb),
@@ -120,6 +120,20 @@ begin
  if p_version is distinct from v then raise exception '他の人の変更があります。更新してからもう一度入力してください' using errcode='40001'; end if;
  actual_actor:=case when me.id is not null then me.name else p_actor end;
  item:=nullif(p_data->>'id','')::uuid;
+ if p_action='grant_admin' then
+  if p_admin is not true then raise exception '管理者権限がありません' using errcode='42501'; end if;
+  perform app_check_admin(p_key);
+  if not exists(select 1 from members where id=item and active and squad='main' and coalesce(trim(email),'')<>'') then
+   raise exception 'Googleメールが登録された有効なメインメンバーだけ指定できます';
+  end if;
+  if not (select is_admin from members where id=item) then
+   update members set is_admin=true where id=item;
+   insert into team_history(actor,action,entity,before_value,after_value,squad)
+   select actual_actor,'grant_admin','member:'||id,jsonb_build_object('is_admin',false),jsonb_build_object('name',name,'is_admin',true),'main' from members where id=item;
+   update team_config set data_version=data_version+1 where id=1;
+  end if;
+  return team_home(p_key,true);
+ end if;
  target_scope:=p_data->>'squad';
  if p_action='member' and item is not null then select squad into target_scope from members where id=item; end if;
  if p_action in ('answer','guest') then

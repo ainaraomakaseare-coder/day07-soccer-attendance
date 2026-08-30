@@ -84,7 +84,18 @@ test('main identity, junior scope, vehicle memory and guest permissions',async(t
   assert.equal(h.answers.find(a=>a.member_id===other).status,'no');assert.equal(h.history[0].actor,'本人');
   await write('member',{id:other,squad:'main',name:'別の人',is_admin:true},'admin');
   assert.equal((await home('other')).can_admin,false);await assert.rejects(manage(otherUid),/管理者/);
-  await db.query('update members set is_admin=false where id=$1',[mid]);
+  await assert.rejects(write('grant_admin',{id:other},'other'),/管理者/);
+  await assert.rejects(write('grant_admin',{id:other},'junior'),/管理者/);
+  await assert.rejects(write('grant_admin',{id:jid},'admin'),/Googleメール/);
+  const stale=(await manage(uid)).version;
+  h=await rpc(db,'team_write',{p_key:'',p_admin:true,p_version:stale,p_actor:'偽装',p_action:'grant_admin',p_data:{id:other}},uid);
+  assert.equal(h.members.find(m=>m.id===other).is_admin,true);assert.equal(h.history[0].action,'grant_admin');assert.equal(h.history[0].actor,'本人');
+  assert.equal((await manage(otherUid)).can_admin,true);
+  await assert.rejects(write('grant_admin',{id:other},'admin',stale),/他の人/);
+  const count=(await db.query("select count(*)::int n from team_history where action='grant_admin'")).rows[0].n;
+  await write('grant_admin',{id:other},'admin');
+  assert.equal((await db.query("select count(*)::int n from team_history where action='grant_admin'")).rows[0].n,count);
+  await db.query('update members set is_admin=false where id in ($1,$2)',[mid,other]);
   await assert.rejects(manage(uid),/管理者/);
  });
  await t.test('4 digit self-registration is authenticated, rate-limited, private and idempotent',async()=>{
