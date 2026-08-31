@@ -57,6 +57,7 @@ test('attendance choices only save on explicit confirmation; cancel keeps saved 
  const home={team:'テスト',me,members:[me],events:[{id:'e',squad:'main',event_date:'2099-09-01',place:'会場',asks_car:true}],answers:[{event_id:'e',member_id:'m',status:'yes',car:'no',note:'連絡'}],guests:[],version:1,year_start_month:4};
  const elements={app:{},editor:{showModal(){opened=true;},close(){opened=false;}},fields:{},'form-error':{},'edit-form':{elements:{}},toast:{style:{}}};
  const context={URLSearchParams,Intl,Date,setTimeout:()=>0,clearTimeout(){},location:{hash:'',pathname:'/team.html'},localStorage:{getItem(){},setItem(){}},FormData:class{constructor(form){return Object.entries(form.values);}},document:{getElementById:id=>elements[id],querySelector:()=>submit,querySelectorAll:()=>[],addEventListener:(n,fn)=>handlers[n]=fn},Auth:{absorbRedirect:()=>({}),loggedIn:()=>true},DB:{ready:()=>true,rpc:async(name,args)=>{calls.push({name,args});return home;}},window:{TeamModel:require('../js/team-model'),addEventListener(){}}};
+ let scrollPosition={top:900,left:0};context.window.scrollTo=position=>{scrollPosition=position;};
  vm.runInNewContext(fs.readFileSync(path.join(root,'js/team.js'),'utf8'),context);await new Promise(setImmediate);
  const click=dataset=>handlers.click({target:{closest:()=>({dataset})}});
  assert.ok(elements.app.innerHTML.includes('イベント一覧'));assert.ok(!elements.app.innerHTML.includes('data-action="quick"'));assert.ok(!elements.app.innerHTML.includes('data-tab="ledger"'));
@@ -66,6 +67,7 @@ test('attendance choices only save on explicit confirmation; cancel keeps saved 
  home.guests.push({event_id:'e',status:'yes',car:true});await click({action:'event-back'});assert.ok(elements.app.innerHTML.includes('16台（16台以上）'));assert.ok(elements.app.innerHTML.includes('parking-over'));
  home.guests=[];
  await click({action:'open-event',id:'e'});assert.ok(elements.app.innerHTML.includes('自分の出欠を登録・変更'));
+ assert.equal(scrollPosition.top,0);assert.equal(scrollPosition.behavior,'instant');
  await click({action:'answer',ev:'e',mid:'m'});assert.equal(calls.length,1);assert.ok(!elements.fields.innerHTML.includes('name="confirmed"'));assert.ok(!elements.fields.innerHTML.includes('伝達事項タブ'));await click({action:'close'});
  for(const status of ['no','yes','']){await click({action:'quick',ev:'e',status});assert.equal(opened,true);assert.equal(calls.length,1);assert.equal(submit.textContent,'確定する');assert.ok(elements.fields.innerHTML.includes(`value="${status}" selected`));await click({action:'close'});assert.equal(opened,false);assert.equal(home.answers[0].status,'yes');}
  for(const car of ['yes','no','bicycle']){await click({action:'quick-car',ev:'e',car});assert.equal(calls.length,1);assert.ok(elements.fields.innerHTML.includes(`value="${car}" selected`));await click({action:'close'});}
