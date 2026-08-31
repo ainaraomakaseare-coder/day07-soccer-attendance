@@ -50,6 +50,11 @@ test('attendance choices only save on explicit confirmation; cancel keeps saved 
  vm.runInNewContext(fs.readFileSync(path.join(root,'js/team.js'),'utf8'),context);await new Promise(setImmediate);
  const click=dataset=>handlers.click({target:{closest:()=>({dataset})}});
  assert.ok(elements.app.innerHTML.includes('イベント一覧'));assert.ok(!elements.app.innerHTML.includes('data-action="quick"'));assert.ok(!elements.app.innerHTML.includes('data-tab="ledger"'));
+ assert.ok(elements.app.innerHTML.includes('calendar-grid'));assert.ok(elements.app.innerHTML.includes('出欠を回答する'));
+ home.events[0].asks_car=true;home.guests=Array.from({length:15},()=>({event_id:'e',status:'yes',car:true}));
+ await click({action:'event-back'});assert.ok(elements.app.innerHTML.includes('15台'));assert.ok(!elements.app.innerHTML.includes('parking-over'));
+ home.guests.push({event_id:'e',status:'yes',car:true});await click({action:'event-back'});assert.ok(elements.app.innerHTML.includes('16台（16台以上）'));assert.ok(elements.app.innerHTML.includes('parking-over'));
+ home.guests=[];
  await click({action:'open-event',id:'e'});assert.ok(elements.app.innerHTML.includes('自分の出欠を登録・変更'));
  await click({action:'answer',ev:'e',mid:'m'});assert.equal(calls.length,1);assert.ok(!elements.fields.innerHTML.includes('name="confirmed"'));assert.ok(!elements.fields.innerHTML.includes('伝達事項タブ'));await click({action:'close'});
  for(const status of ['no','yes','']){await click({action:'quick',ev:'e',status});assert.equal(opened,true);assert.equal(calls.length,1);assert.equal(submit.textContent,'確定する');assert.ok(elements.fields.innerHTML.includes(`value="${status}" selected`));await click({action:'close'});assert.equal(opened,false);assert.equal(home.answers[0].status,'yes');}
