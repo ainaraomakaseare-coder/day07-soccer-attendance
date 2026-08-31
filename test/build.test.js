@@ -1,6 +1,16 @@
 const {test}=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs');
 const path=require('node:path');const os=require('node:os');const {execFileSync}=require('node:child_process');
 const root=path.join(__dirname,'..');
+test('event sharing contains only schedule and keeps the event through Google login',()=>{
+ const id='11111111-1111-4111-8111-111111111111';
+ const share=require('../js/team-model').shareEvent({id,event_date:'2026-09-01',place:'体育館',start_time:'17:00:00',end_time:'19:00:00',vehicle_plate:'非公開'},'チーム','https://example.com','/team.html');
+ assert.equal(share.url,'https://example.com/team.html?event='+id);assert.ok(share.body.includes('17:00 ～ 19:00'));assert.ok(!share.body.includes('非公開'));
+ const vm=require('node:vm');let cleaned;
+ const ctx={window:{APP_CONFIG:{SUPABASE_URL:'https://test.supabase.co'}},location:{origin:'https://example.com',pathname:'/team.html',search:'?event='+id+'&admin=secret',hash:''},URLSearchParams,localStorage:{getItem:()=>null,setItem(){}},history:{replaceState:(a,b,url)=>cleaned=url},Date};
+ vm.runInNewContext(fs.readFileSync(path.join(root,'js/auth.js'),'utf8'),ctx);
+ ctx.window.Auth.signIn(null);assert.equal(new URL(ctx.location.href).searchParams.get('redirect_to'),share.url);
+ ctx.location.hash='#access_token=private&refresh_token=private';ctx.window.Auth.absorbRedirect();assert.equal(cleaned,share.url);
+});
 test('event Excel contains only attendees, protects text and paginates every 25',()=>{
  const E=require('../js/export');const event={id:'e',event_date:'2026-09-01',place:'体育館',asks_car:true};
  const members=Array.from({length:26},(_,i)=>({id:String(i),name:i===0?'=危険&文字':'参加者'+i}));

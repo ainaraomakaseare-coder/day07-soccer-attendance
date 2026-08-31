@@ -2,6 +2,12 @@
 (function(root){
  const today=()=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Tokyo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
  const model={today,
+  shareEvent(event,team,origin,path){
+   const url=origin+path+'?event='+encodeURIComponent(event.id);
+   const title=team+' '+event.event_date+' '+(event.kind==='match'?'試合':'練習');
+   const text=title+'\n場所：'+(event.place||'場所未定')+'\n時間：'+(event.start_time?.slice(0,5)||'時間未定')+(event.end_time?' ～ '+event.end_time.slice(0,5):'')+'\nGoogleでログインして出欠を回答してください。';
+   return {url,title,text,body:text+'\n'+url};
+  },
   yearFor(date,month){return Number(date.slice(0,4))-(Number(date.slice(5,7))<Number(month)?1:0);},
   yearRange(year,month){const m=String(month).padStart(2,'0');return [year+'-'+m+'-01',(Number(year)+1)+'-'+m+'-01'];},
   count(data,event){

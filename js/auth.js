@@ -32,7 +32,8 @@
 
   function landingUrl(invite) {
     const u = location.origin + location.pathname;
-    return invite ? u + '?invite=' + encodeURIComponent(invite) : u;
+    const event = new URLSearchParams(location.search).get('event');
+    return invite ? u + '?invite=' + encodeURIComponent(invite) : u + (event && /^[a-f0-9-]{36}$/i.test(event) ? '?event='+encodeURIComponent(event) : '');
   }
 
   window.Auth = {
@@ -72,7 +73,7 @@
         });
       }
       if (access || err || invite) {
-        history.replaceState(null, '', location.origin + location.pathname);
+        history.replaceState(null, '', landingUrl(null));
       }
       return { invite: invite, error: err };
     },
