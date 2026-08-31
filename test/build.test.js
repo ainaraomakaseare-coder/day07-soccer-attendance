@@ -1,6 +1,12 @@
 const {test}=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs');
 const path=require('node:path');const os=require('node:os');const {execFileSync}=require('node:child_process');
 const root=path.join(__dirname,'..');
+test('public Day8 LP contains no real identity, embedded screenshots or production links',()=>{
+ const html=fs.readFileSync(path.join(root,'day8-public.html'),'utf8');
+ for(const value of ['アガペ','AGAPE','長井','志賀','妹尾','古川','鈴木','清水','泉スポ','lucent-taffy','supabase','gmail.com','data:image','config.local','<script'])assert.ok(!html.includes(value),value);
+ assert.ok(html.includes('すべて架空'));assert.ok(html.includes('DAY 08'));
+ assert.ok(!/<(?:a|iframe|img)\b/i.test(html));
+});
 test('event sharing contains only schedule and keeps the event through Google login',()=>{
  const id='11111111-1111-4111-8111-111111111111';
  const share=require('../js/team-model').shareEvent({id,event_date:'2026-09-01',place:'体育館',start_time:'17:00:00',end_time:'19:00:00',vehicle_plate:'非公開'},'チーム','https://example.com','/team.html');
@@ -79,7 +85,7 @@ test('attendance choices only save on explicit confirmation; cancel keeps saved 
 test('publish whitelist includes team assets but never SQL, tests or secrets',()=>{
  // 空の一時コピーだけでビルドする。本番のconfig.local.jsやdistに触れない。
  const temp=fs.mkdtempSync(path.join(os.tmpdir(),'agape-build-test-'));
- const files=['index.html','admin.html','teian.html','privacy.html','team.html','team.css','js/export-template.js','js/export.js','js/db.js','js/auth.js','js/team.js','js/team-model.js','scripts/setup-config.js','scripts/build.js'];
+ const files=['index.html','admin.html','teian.html','day8-public.html','privacy.html','team.html','team.css','js/export-template.js','js/export.js','js/db.js','js/auth.js','js/team.js','js/team-model.js','scripts/setup-config.js','scripts/build.js'];
  for(const f of files){const to=path.join(temp,f);fs.mkdirSync(path.dirname(to),{recursive:true});fs.copyFileSync(path.join(root,f),to);}
  const env={...process.env,SUPABASE_URL:'https://build-test.supabase.co',SUPABASE_ANON_KEY:'sb_publishable_build_test_not_real'};
  execFileSync(process.execPath,[path.join(temp,'scripts/build.js')],{env,stdio:'pipe'});
