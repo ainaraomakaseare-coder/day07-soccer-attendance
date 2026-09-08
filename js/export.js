@@ -6,7 +6,7 @@
  function collect(data,event){
   const rows=[],warnings=[];
   function vehicle(a,name,isGuest){
-   if(a.uses_bicycle)return '自転車利用';
+   if(a.uses_bicycle){if(!a.vehicle_plate){warnings.push(name+'：バイクのナンバー未入力');return 'バイク ナンバー未入力';}return 'バイク '+a.vehicle_plate;}
    if(isGuest?a.car===true:a.car==='yes'){
     if(!a.vehicle_plate){warnings.push(name+'：ナンバー未入力');return 'ナンバー未入力';}
     return a.vehicle_plate;
@@ -37,7 +37,7 @@
   const {rows,warnings}=collect(data,event),pages=Math.max(1,Math.ceil(rows.length/25)),files={...template};let content='';
   const cell=(ref,value,style)=>`<x:c r="${ref}" s="${style}" t="inlineStr"><x:is><x:t xml:space="preserve">${xml(value)}</x:t></x:is></x:c>`;
   for(let p=0;p<pages;p++){
-   let r=p*26+1;content+=`<x:row r="${r}" ht="30" customHeight="1">`+['人数','参加者氏名（代表者を含む）','入場車両番号（自転車は自転車利用と記載）'].map((v,i)=>cell('ABC'[i]+r,v,7)).join('')+'</x:row>';
+   let r=p*26+1;content+=`<x:row r="${r}" ht="30" customHeight="1">`+['人数','参加者氏名（代表者を含む）','入場車両番号（バイクは「バイク」＋ナンバーと記載）'].map((v,i)=>cell('ABC'[i]+r,v,7)).join('')+'</x:row>';
    for(let i=0;i<25;i++){r++;const n=p*25+i,entry=rows[n]||{};content+=`<x:row r="${r}" ht="22" customHeight="1"><x:c r="A${r}" s="4" t="n"><x:v>${n+1}</x:v></x:c>${cell('B'+r,entry.name,5)}${cell('C'+r,entry.vehicle,5)}</x:row>`;}
   }
   let sheet=files['xl/worksheets/sheet1.xml'].replace(/<x:sheetData>[\s\S]*?<\/x:sheetData>/,`<x:sheetData>${content}</x:sheetData>`);

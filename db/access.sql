@@ -134,6 +134,17 @@ begin
   end if;
   return team_home(p_key,true);
  end if;
+ if p_action='delete_member' then
+  if p_admin is not true then raise exception '管理者権限がありません' using errcode='42501'; end if;
+  perform app_check_admin(p_key);
+  if me.id is not null and item=me.id then raise exception '自分自身は完全削除できません'; end if;
+  if not exists(select 1 from members where id=item and active=false) then raise exception '先にメンバーを削除済みにしてください'; end if;
+  insert into team_history(actor,action,entity,before_value,after_value,squad)
+  select actual_actor,'delete_member','member:'||id,jsonb_build_object('name',name,'active',active),null,squad from members where id=item;
+  delete from members where id=item and active=false;
+  update team_config set data_version=data_version+1 where id=1;
+  return team_home(p_key,true);
+ end if;
  target_scope:=p_data->>'squad';
  if p_action='member' and item is not null then select squad into target_scope from members where id=item; end if;
  if p_action in ('answer','guest') then
@@ -164,7 +175,7 @@ begin
  if p_action='answer' then
   target_member:=(p_data->>'member_id')::uuid;
   if coalesce((p_data->>'uses_bicycle')::boolean,false) and p_data->>'car'='yes' then raise exception '車と自転車はどちらかを選んでください'; end if;
-  if p_data->>'status'='yes' and p_data->>'car'='yes' and (select asks_car from events where id=target_event) then
+  if p_data->>'status'='yes' and (p_data->>'car'='yes' or coalesce((p_data->>'uses_bicycle')::boolean,false)) and (select asks_car from events where id=target_event) then
    -- 非管理者には番号を返さず、未入力なら本人の保存済み番号を使用する。
    plate:=app_validate_plate(coalesce(nullif(trim(p_data->>'vehicle_plate'),''),(select nullif(vehicle_plate,'') from attendance where member_id=target_member and event_id=target_event),(select vehicle_plate from members where id=target_member)));
   end if;
@@ -176,7 +187,7 @@ begin
    if scope='main' and g.created_by is distinct from me.id then raise exception 'このゲストの修正は追加者または管理者が行えます' using errcode='42501'; end if;
   end if;
   if scope='main' then p_data:=p_data||jsonb_build_object('invited_by',case when item is null then me.name else g.invited_by end); end if;
-  if coalesce(p_data->>'status','yes')='yes' and coalesce((p_data->>'car')::boolean,false) and (select asks_car from events where id=target_event) then
+  if coalesce(p_data->>'status','yes')='yes' and (coalesce((p_data->>'car')::boolean,false) or coalesce((p_data->>'uses_bicycle')::boolean,false)) and (select asks_car from events where id=target_event) then
    plate:=app_validate_plate(coalesce(nullif(trim(p_data->>'vehicle_plate'),''),g.vehicle_plate));
   end if;
  end if;
@@ -193,7 +204,7 @@ begin
   update team_history set after_value=(select to_jsonb(x) from team_guests x where id=item) where id=h_id;
  elsif p_action='undo_answer' then
   original_plate:=coalesce(hist.before_value->>'vehicle_plate','');
-  update attendance set vehicle_plate=case when car='yes' then original_plate else '' end,uses_bicycle=coalesce((hist.before_value->>'uses_bicycle')::boolean,false) where event_id=target_event and member_id=target_member;
+  update attendance set vehicle_plate=case when car='yes' or coalesce((hist.before_value->>'uses_bicycle')::boolean,false) then original_plate else '' end,uses_bicycle=coalesce((hist.before_value->>'uses_bicycle')::boolean,false) where event_id=target_event and member_id=target_member;
   update team_history set after_value=(select to_jsonb(a) from attendance a where member_id=target_member and event_id=target_event) where id=h_id;
  elsif p_action='event' then
   item:=(select (after_value->>'id')::uuid from team_history where id=h_id);

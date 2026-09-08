@@ -117,7 +117,7 @@ test('main identity, junior scope, vehicle memory and guest permissions',async(t
   await assert.rejects(rpc(db,'admin_registration_code',{p_admin:c.admin_token,p_code:'12345'}),/4桁/);
  });
  await t.test('bicycle replies persist, clear on absence and restore with undo',async()=>{
-  let h=await write('answer',{event_id:eid,member_id:mid,status:'yes',car:'no',uses_bicycle:true});assert.equal(h.answers.find(a=>a.member_id===mid).uses_bicycle,true);
+  let h=await write('answer',{event_id:eid,member_id:mid,status:'yes',car:'no',uses_bicycle:true,vehicle_plate:'品川 い 5678'});assert.equal(h.answers.find(a=>a.member_id===mid).uses_bicycle,true);assert.equal((await home('admin')).answers.find(a=>a.member_id===mid).vehicle_plate,'品川 い 5678');
   await assert.rejects(write('answer',{event_id:eid,member_id:mid,status:'yes',car:'yes',uses_bicycle:true,vehicle_plate:'横浜 300 あ 1234'}),/どちらか/);
   h=await write('answer',{event_id:eid,member_id:mid,status:'no',uses_bicycle:true});assert.equal(h.answers.find(a=>a.member_id===mid).uses_bicycle,false);
   h=await write('undo_answer',{history_id:h.history[0].id});assert.equal(h.answers.find(a=>a.member_id===mid).uses_bicycle,true);
@@ -226,7 +226,10 @@ test('isolated PostgreSQL: migration, legacy tests and team workflows',async(t)=
  });
  await t.test('archive keeps records; ordinary users cannot archive; token rotation revokes old link',async()=>{
   await assert.rejects(write('archive_member',{id:member,active:false},false));
+  await assert.rejects(write('delete_member',{id:member},true),/先にメンバーを削除済み/);
   const h=await write('archive_member',{id:member,active:false},true);assert.ok(h.answers.some(a=>a.member_id===member));
+  await assert.rejects(write('delete_member',{id:member},false),/管理者/);
+  const deleted=await write('delete_member',{id:member},true);assert.ok(!deleted.members.some(m=>m.id===member));assert.ok(!deleted.answers.some(a=>a.member_id===member));assert.equal(deleted.history[0].action,'delete_member');
   await write('rotate_link',{},true);await assert.rejects(home(false));assert.ok((await home(true)).members.length);
  });
 });

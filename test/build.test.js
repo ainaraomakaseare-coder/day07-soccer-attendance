@@ -20,11 +20,11 @@ test('event sharing contains only schedule and keeps the event through Google lo
 test('event Excel contains only attendees, protects text and paginates every 25',()=>{
  const E=require('../js/export');const event={id:'e',event_date:'2026-09-01',place:'体育館',asks_car:true};
  const members=Array.from({length:26},(_,i)=>({id:String(i),name:i===0?'=危険&文字':'参加者'+i}));
- const data={members,answers:members.map((m,i)=>({member_id:m.id,event_id:'e',status:i===25?'no':'yes',car:i===0?'yes':'no',vehicle_plate:i===0?'横浜 300 あ 1234':'',uses_bicycle:i===1})),guests:[{event_id:'e',name:'助っ人',status:'yes',car:false},{event_id:'other',name:'別日',status:'yes',car:false}]};
+ const data={members,answers:members.map((m,i)=>({member_id:m.id,event_id:'e',status:i===25?'no':'yes',car:i===0?'yes':'no',vehicle_plate:i===0?'横浜 300 あ 1234':i===1?'品川 い 5678':'',uses_bicycle:i===1})),guests:[{event_id:'e',name:'助っ人',status:'yes',car:false},{event_id:'other',name:'別日',status:'yes',car:false}]};
  const result=E.create(data,event);assert.equal(result.count,26);assert.equal(result.pages,2);assert.deepEqual(result.warnings,[]);
  const entries={};let pos=0;const v=new DataView(result.bytes.buffer);const decode=new TextDecoder();
  while(v.getUint32(pos,true)===0x04034b50){const size=v.getUint32(pos+18,true),n=v.getUint16(pos+26,true),extra=v.getUint16(pos+28,true),start=pos+30+n+extra;entries[decode.decode(result.bytes.slice(pos+30,pos+30+n))]=decode.decode(result.bytes.slice(start,start+size));pos=start+size;}
- const sheet=entries['xl/worksheets/sheet1.xml'];assert.ok(sheet.includes('自転車利用'));assert.ok(sheet.includes('横浜 300 あ 1234'));assert.ok(sheet.includes('=危険&amp;文字'));assert.ok(!sheet.includes('<x:f>'));assert.ok(!sheet.includes('参加者25'));assert.ok(!sheet.includes('別日'));assert.ok(sheet.includes('id="26"'));assert.ok(entries['xl/workbook.xml'].includes('$C$52'));
+ const sheet=entries['xl/worksheets/sheet1.xml'];assert.ok(sheet.includes('バイク 品川 い 5678'));assert.ok(sheet.includes('横浜 300 あ 1234'));assert.ok(sheet.includes('=危険&amp;文字'));assert.ok(!sheet.includes('<x:f>'));assert.ok(!sheet.includes('参加者25'));assert.ok(!sheet.includes('別日'));assert.ok(sheet.includes('id="26"'));assert.ok(entries['xl/workbook.xml'].includes('$C$52'));
  data.answers[0].vehicle_plate='';assert.equal(E.create(data,event).warnings.length,1);
  assert.equal(E.create({members:[],answers:[],guests:[]},event).pages,1);
 });
