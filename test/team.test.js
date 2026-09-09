@@ -224,12 +224,6 @@ test('isolated PostgreSQL: migration, legacy tests and team workflows',async(t)=
   await assert.rejects(write('bib',{number:'01',state:'available'}));
   await assert.rejects(write('bib',{number:'02',member_id:member,state:'loaned'}));
  });
- await t.test('admin can reorder the complete member list',async()=>{
-  const h=await home(true),ids=h.members.filter(m=>m.squad==='main').map(m=>m.id).reverse();
-  await assert.rejects(write('reorder_members',{squad:'main',ids},false),/管理者/);
-  const moved=await write('reorder_members',{squad:'main',ids},true);assert.deepEqual(moved.members.filter(m=>m.squad==='main').map(m=>m.id),ids);
-  await assert.rejects(write('reorder_members',{squad:'main',ids:ids.slice(1)},true),/名簿を更新/);
- });
  await t.test('archive keeps records; ordinary users cannot archive; token rotation revokes old link',async()=>{
   await assert.rejects(write('archive_member',{id:member,active:false},false));
   await assert.rejects(write('delete_member',{id:member},true),/先にメンバーを削除済み/);

@@ -57,6 +57,13 @@ test('main-only UI hides junior entry and ignores previously selected junior gro
  const f=presets.elements['edit-form'].elements;for(const name of ['place','start_time','end_time','place_preset','time_preset'])f[name]={value:''};
  await presets.handlers.change({target:{name:'place_preset',value:'会場A',closest:()=>true}});assert.equal(f.place.value,'会場A');await presets.handlers.change({target:{name:'time_preset',value:'17:00|19:00',closest:()=>true}});assert.equal(f.start_time.value,'17:00');assert.equal(f.end_time.value,'19:00');
 });
+test('member roster sorts from the existing number header without a separate order column',()=>{
+ const source=fs.readFileSync(path.join(root,'js/team.js'),'utf8');
+ assert.ok(source.includes('data-action="member-number-sort"'));
+ assert.ok(source.includes("numeric:true"));
+ assert.ok(!source.includes('data-action="member-move"'));
+ assert.ok(!source.includes('<th>順番</th>'));
+});
 test('attendance choices only save on explicit confirmation; cancel keeps saved answer',async()=>{
  const vm=require('node:vm'),handlers={},calls=[],submit={};let opened=false;
  const me={id:'m',name:'本人',squad:'main',active:true,member_role:'player'};
