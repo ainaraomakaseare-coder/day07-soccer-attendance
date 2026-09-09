@@ -145,6 +145,21 @@ begin
   update team_config set data_version=data_version+1 where id=1;
   return team_home(p_key,true);
  end if;
+ if p_action='reorder_members' then
+  if p_admin is not true then raise exception '管理者権限がありません' using errcode='42501'; end if;
+  perform app_check_admin(p_key);
+  target_scope:=p_data->>'squad';
+  if target_scope not in ('main','junior') or jsonb_typeof(p_data->'ids') is distinct from 'array' then raise exception '並び順が正しくありません'; end if;
+  if jsonb_array_length(p_data->'ids')<>(select count(*) from members where squad=target_scope)
+   or exists(select 1 from jsonb_array_elements_text(p_data->'ids') x(id) where not exists(select 1 from members m where m.id=x.id::uuid and m.squad=target_scope))
+   or (select count(distinct x.id) from jsonb_array_elements_text(p_data->'ids') x(id))<>jsonb_array_length(p_data->'ids')
+  then raise exception '名簿を更新してから並び替えてください'; end if;
+  update members m set sort_order=x.ord from jsonb_array_elements_text(p_data->'ids') with ordinality x(id,ord) where m.id=x.id::uuid and m.squad=target_scope;
+  insert into team_history(actor,action,entity,before_value,after_value,squad)
+  values(actual_actor,'reorder_members','members:'||target_scope,null,jsonb_build_object('count',jsonb_array_length(p_data->'ids')),target_scope);
+  update team_config set data_version=data_version+1 where id=1;
+  return team_home(p_key,true);
+ end if;
  target_scope:=p_data->>'squad';
  if p_action='member' and item is not null then select squad into target_scope from members where id=item; end if;
  if p_action in ('answer','guest') then
