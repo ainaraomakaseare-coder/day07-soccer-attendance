@@ -117,7 +117,7 @@ begin
  scope:=case when p_admin is true then 'all' when coalesce(p_key,'')<>'' then 'junior' else 'main' end;
  if scope='main' or (p_admin is true and coalesce(p_key,'')='') then me:=app_main_member(); end if;
  select data_version into v from team_config where id=1 for update;
- if p_version is distinct from v then raise exception '他の人の変更があります。更新してからもう一度入力してください' using errcode='40001'; end if;
+ if p_version is distinct from v then raise exception '他の人の変更があります。更新してからもう一度入力してください' using errcode='PT409'; end if;
  actual_actor:=case when me.id is not null then me.name else p_actor end;
  item:=nullif(p_data->>'id','')::uuid;
  if p_action='grant_admin' then
