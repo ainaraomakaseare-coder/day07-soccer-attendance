@@ -114,7 +114,7 @@ begin
  select * into cfg from team_config where id=1 for update;
  perform app_team_access(p_key,p_admin);
  if p_version is distinct from cfg.data_version then
-  raise exception '他の人の変更があります。更新してからもう一度入力してください' using errcode='40001';
+  raise exception '他の人の変更があります。更新してからもう一度入力してください' using errcode='PT409';
  end if;
  if p_actor is null or length(trim(p_actor)) not between 1 and 80 then raise exception '入力者名を1〜80文字で入力してください'; end if;
  if p_data is null or jsonb_typeof(p_data) <> 'object' then raise exception '入力形式が正しくありません'; end if;
