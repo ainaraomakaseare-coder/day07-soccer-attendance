@@ -150,6 +150,11 @@ begin
  if p_action in ('answer','guest') then
   target_event:=(p_data->>'event_id')::uuid;select squad into target_scope from events where id=target_event;
  end if;
+ if p_action='delete_guest' then
+  select * into g from team_guests where id=item;
+  if not found then raise exception '助っ人が見つかりません'; end if;
+  target_event:=g.event_id;select squad into target_scope from events where id=target_event;
+ end if;
  if p_action='notice' and item is not null then select squad into target_scope from team_notices where id=item; end if;
  if p_action='notice' and p_data->>'squad' is distinct from target_scope then raise exception 'グループが一致しません' using errcode='42501'; end if;
  if p_action='bib' then target_scope:='junior'; end if;
@@ -158,7 +163,7 @@ begin
   target_event:=split_part(hist.entity,':',2)::uuid;target_member:=split_part(hist.entity,':',3)::uuid;
   select squad into target_scope from events where id=target_event;
  end if;
- if p_action in ('answer','guest','member','notice','bib','undo_answer') then
+ if p_action in ('answer','guest','delete_guest','member','notice','bib','undo_answer') then
   if target_scope is null then raise exception '対象が見つかりません'; end if;
   if scope<>'all' and target_scope<>scope then raise exception 'このグループは変更できません' using errcode='42501'; end if;
  end if;
@@ -191,6 +196,9 @@ begin
    plate:=app_validate_plate(coalesce(nullif(trim(p_data->>'vehicle_plate'),''),g.vehicle_plate));
   end if;
  end if;
+ if p_action='delete_guest' and scope='main' and g.created_by is distinct from me.id then
+  raise exception 'このゲストの削除は追加者または管理者が行えます' using errcode='42501';
+ end if;
  result:=app_team_write_core(p_key,p_admin,p_version,actual_actor,p_action,p_data);
  select max(id) into h_id from team_history;
  update team_history set squad=target_scope where id=h_id;
@@ -221,6 +229,33 @@ begin
 end $$;
 revoke all on function team_home(text,boolean),team_write(text,boolean,bigint,text,text,jsonb) from public;
 grant execute on function team_home(text,boolean),team_write(text,boolean,bigint,text,text,jsonb) to anon,authenticated;
+
+create or replace function team_delete_guest(p_key text,p_admin boolean,p_version bigint,p_actor text,p_id uuid)
+returns jsonb language plpgsql security definer set search_path=public,pg_temp as $$
+declare me members; g team_guests; event_scope text; actual_actor text; v bigint;
+begin
+ perform app_team_access(p_key,p_admin);
+ if p_admin is true then perform app_check_admin(p_key); end if;
+ if coalesce(p_key,'')='' then me:=app_main_member(); end if;
+ select data_version into v from team_config where id=1 for update;
+ if p_version is distinct from v then raise exception '他の人の変更があります。更新してからもう一度入力してください' using errcode='PT409'; end if;
+ select * into g from team_guests where id=p_id;
+ if not found then raise exception '助っ人が見つかりません'; end if;
+ select squad into event_scope from events where id=g.event_id;
+ if p_admin is not true then
+  if event_scope='main' and g.created_by is distinct from me.id then raise exception 'このゲストの削除は追加者または管理者が行えます' using errcode='42501'; end if;
+  if event_scope='junior' and coalesce(p_key,'')='' then raise exception 'このグループは変更できません' using errcode='42501'; end if;
+ end if;
+ actual_actor:=case when me.id is not null then me.name else p_actor end;
+ if actual_actor is null or length(trim(actual_actor)) not between 1 and 80 then raise exception '入力者名を1〜80文字で入力してください'; end if;
+ insert into team_history(actor,action,entity,before_value,after_value,squad)
+ values(actual_actor,'delete_guest','guest:'||g.id,to_jsonb(g),null,event_scope);
+ delete from team_guests where id=g.id;
+ update team_config set data_version=data_version+1 where id=1;
+ return team_home(p_key,p_admin);
+end $$;
+revoke all on function team_delete_guest(text,boolean,bigint,text,uuid) from public;
+grant execute on function team_delete_guest(text,boolean,bigint,text,uuid) to anon,authenticated;
 
 -- 旧招待コードや旧API経由で「本人だけ」の制約を回避できないよう閉じる。
 revoke execute on function member_home(text),set_status(text,uuid,text,text),event_detail(text,uuid),

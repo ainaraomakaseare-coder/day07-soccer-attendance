@@ -197,6 +197,10 @@ begin
    coalesce(p_data->>'status','yes')='yes' and coalesce((p_data->>'car')::boolean,false) and (select asks_car from events where id=eid),left(coalesce(p_data->>'note',''),1000))
    on conflict(id) do update set name=excluded.name,invited_by=excluded.invited_by,status=excluded.status,car=excluded.car,note=excluded.note;
   select to_jsonb(g) into new_value from team_guests g where id=item; entity_key:='guest:'||item;
+ elsif p_action='delete_guest' then
+  select to_jsonb(g) into old_value from team_guests g where id=item;
+  if not found then raise exception '助っ人が見つかりません'; end if;
+  delete from team_guests where id=item; entity_key:='guest:'||item;
  elsif p_action='notice' then
   if item is not null then
    select to_jsonb(n) into old_value from team_notices n where id=item;

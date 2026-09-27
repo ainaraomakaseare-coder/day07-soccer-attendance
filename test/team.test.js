@@ -7,6 +7,7 @@ test('main identity, junior scope, vehicle memory and guest permissions',async(t
  const uid='11111111-1111-4111-8111-111111111111',otherUid='22222222-2222-4222-8222-222222222222';
  const home=(mode='main')=>rpc(db,'team_home',{p_key:mode==='admin'?c.admin_token:mode==='junior'?c.shared_token:'',p_admin:mode==='admin'},mode==='main'?uid:mode==='other'?otherUid:'');
  const write=async(action,payload,mode='main',version)=>rpc(db,'team_write',{p_key:mode==='admin'?c.admin_token:mode==='junior'?c.shared_token:'',p_admin:mode==='admin',p_version:version??(await home(mode)).version,p_actor:'偽の入力者',p_action:action,p_data:payload},mode==='main'?uid:mode==='other'?otherUid:'');
+ const removeGuest=async(id,mode='main',version)=>rpc(db,'team_delete_guest',{p_key:mode==='admin'?c.admin_token:mode==='junior'?c.shared_token:'',p_admin:mode==='admin',p_version:version??(await home(mode)).version,p_actor:'偽の入力者',p_id:id},mode==='main'?uid:mode==='other'?otherUid:'');
  await db.query('insert into auth.users(id,email) values($1,$2),($3,$4)',[uid,'PLAYER@example.com',otherUid,'other@example.com']);
  let mid,other,jid,eid,jeid;
  await t.test('main needs verified registered email; mapping is automatic',async()=>{
@@ -59,13 +60,17 @@ test('main identity, junior scope, vehicle memory and guest permissions',async(t
   const saved=await write('notice',{squad:'main',member_id:mid,body:'遅れます',notice_date:'2026-09-01'});
   await assert.rejects(write('notice',{...saved.notices[0],member_id:other},'other'),/他の人/);
  });
- await t.test('guest creator is authenticated inviter; only creator/admin edits',async()=>{
+ await t.test('guest creator is authenticated inviter; only creator/admin edits or deletes',async()=>{
   let h=await write('guest',{event_id:eid,name:'助っ人',invited_by:'偽装',status:'yes',car:true,vehicle_plate:'横浜 500 い 5678'});
   assert.ok(!JSON.stringify(h).includes('横浜 500 い 5678'));const g=h.guests[0];assert.equal(g.created_by,mid);assert.equal(g.invited_by,'本人');
   await assert.rejects(write('guest',{...g,name:'書き換え'},'other'),/追加者/);
   assert.equal((await home('other')).guests[0].vehicle_plate,undefined);
   h=await write('guest',{...g,note:'集合確認'});assert.equal(h.guests[0].note,'集合確認');
   h=await write('guest',{...g,status:'no'},'admin');assert.equal(h.guests[0].vehicle_plate,'');
+  await assert.rejects(removeGuest(g.id,'other'),/追加者/);
+  h=await removeGuest(g.id);assert.equal(h.guests.length,0);assert.equal(h.history[0].action,'delete_guest');
+  h=await write('guest',{event_id:eid,name:'管理削除用',status:'no',car:false});
+  h=await removeGuest(h.guests[0].id,'admin');assert.equal(h.guests.length,0);
  });
  await t.test('all old member entry points revoked; ordinary payloads contain no email',async()=>{
   const privileges=await db.query(`select proname,has_function_privilege('anon',oid,'execute') a,has_function_privilege('authenticated',oid,'execute') u from pg_proc where pronamespace='public'::regnamespace and proname in ('member_home','set_status','event_detail','claim_member','roster_by_code','claim_member_by_code','me_home','me_set_status','me_event_detail','me_set_name')`);
