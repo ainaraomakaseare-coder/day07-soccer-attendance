@@ -78,7 +78,9 @@ begin
  select coalesce(jsonb_agg(x),'[]'::jsonb) into event_ids from jsonb_array_elements(result->'events') x where scope='all' or x->>'squad'=scope;
  result:=result||jsonb_build_object('scope',scope,'events',event_ids,
   'can_admin',coalesce(me.is_admin,false),
-  'me',case when me.id is not null then jsonb_build_object('id',me.id,'name',me.name,'has_vehicle_plate',me.vehicle_plate<>'') || case when p_admin is true then jsonb_build_object('vehicle_plate',me.vehicle_plate) else '{}'::jsonb end else null end,
+  -- 本人には保存済みナンバーを返し、次回の回答フォームへ復元する。
+  -- 他メンバーのナンバーは従来どおり管理者にしか返さない。
+  'me',case when me.id is not null then jsonb_build_object('id',me.id,'name',me.name,'has_vehicle_plate',me.vehicle_plate<>'','vehicle_plate',me.vehicle_plate) else null end,
   'members',coalesce((select jsonb_agg(x || case when p_admin is true then
     jsonb_build_object('email',m.email,'vehicle_plate',m.vehicle_plate,'is_admin',m.is_admin) else '{}'::jsonb end)
     from jsonb_array_elements(result->'members') x join members m on m.id=(x->>'id')::uuid where scope='all' or m.squad=scope),'[]'::jsonb),

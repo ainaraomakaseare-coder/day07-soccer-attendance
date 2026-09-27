@@ -39,10 +39,10 @@ test('main identity, junior scope, vehicle memory and guest permissions',async(t
   await assert.rejects(write('answer',{event_id:eid,member_id:mid,status:'yes',car:'yes'}),/ナンバー/);
   await assert.rejects(write('answer',{event_id:eid,member_id:mid,status:'yes',car:'yes',vehicle_plate:'1234'}),/ナンバー/);
   let h=await write('answer',{event_id:eid,member_id:mid,status:'yes',car:'yes',vehicle_plate:'横浜 300 あ 1234'});
-  assert.equal(h.me.vehicle_plate,undefined);assert.equal(h.me.has_vehicle_plate,true);assert.ok(!JSON.stringify(h).includes('横浜 300 あ 1234'));assert.equal((await home('admin')).answers.find(a=>a.member_id===mid).vehicle_plate,'横浜 300 あ 1234');
+  assert.equal(h.me.vehicle_plate,'横浜 300 あ 1234');assert.equal(h.me.has_vehicle_plate,true);assert.equal(h.answers.find(a=>a.member_id===mid).vehicle_plate,undefined);assert.equal((await home('admin')).answers.find(a=>a.member_id===mid).vehicle_plate,'横浜 300 あ 1234');
   assert.equal(h.history[0].actor,'本人');
   h=await home('other');assert.equal(h.answers.find(a=>a.member_id===mid).vehicle_plate,undefined);assert.ok(!JSON.stringify(h.history).includes('横浜 300 あ 1234'));
-  h=await write('answer',{event_id:eid,member_id:mid,status:'no'});assert.equal(h.me.vehicle_plate,undefined);assert.equal(h.me.has_vehicle_plate,true);assert.equal(h.answers[0].vehicle_plate,undefined);
+  h=await write('answer',{event_id:eid,member_id:mid,status:'no'});assert.equal(h.me.vehicle_plate,'横浜 300 あ 1234');assert.equal(h.me.has_vehicle_plate,true);assert.equal(h.answers[0].vehicle_plate,undefined);
   const hist=h.history[0].id;
   await assert.rejects(write('undo_answer',{history_id:hist},'other'),/自分/);
   h=await write('undo_answer',{history_id:hist});assert.equal(h.answers[0].vehicle_plate,undefined);assert.equal((await home('admin')).answers.find(a=>a.member_id===mid).vehicle_plate,'横浜 300 あ 1234');await write('answer',{event_id:eid,member_id:mid,status:'yes',car:'yes'});

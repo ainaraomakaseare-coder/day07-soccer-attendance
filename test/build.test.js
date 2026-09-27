@@ -66,7 +66,7 @@ test('member roster sorts from the existing number header without a separate ord
 });
 test('attendance choices only save on explicit confirmation; cancel keeps saved answer',async()=>{
  const vm=require('node:vm'),handlers={},calls=[],submit={};let opened=false;
- const me={id:'m',name:'本人',number:'',squad:'main',active:true,member_role:'player'};
+ const me={id:'m',name:'本人',number:'',squad:'main',active:true,member_role:'player',has_vehicle_plate:true,vehicle_plate:'横浜 300 あ 1234'};
  const first={id:'first',name:'番号一番',number:'1',squad:'main',active:true,member_role:'player'},tenth={id:'tenth',name:'番号十番',number:'10',squad:'main',active:true,member_role:'player'};
  const home={team:'テスト',me,members:[tenth,me,first],events:[{id:'e',squad:'main',event_date:'2099-09-01',place:'会場',asks_car:true}],answers:[{event_id:'e',member_id:'m',status:'yes',car:'no',note:'連絡'}],guests:[],version:1,year_start_month:4};
  const elements={app:{},editor:{showModal(){opened=true;},close(){opened=false;}},fields:{},'form-error':{},'edit-form':{elements:{}},toast:{style:{}}};
@@ -83,7 +83,7 @@ test('attendance choices only save on explicit confirmation; cancel keeps saved 
  await click({action:'open-event',id:'e'});assert.ok(elements.app.innerHTML.includes('自分の出欠を登録・変更'));
  assert.ok(elements.app.innerHTML.includes('<th>番号</th><th>名前</th>'));assert.ok(elements.app.innerHTML.indexOf('番号一番')<elements.app.innerHTML.indexOf('番号十番'));assert.ok(elements.app.innerHTML.indexOf('番号十番')<elements.app.innerHTML.lastIndexOf('本人'));
  assert.equal(scrollPosition.top,0);assert.equal(scrollPosition.behavior,'instant');
- await click({action:'answer',ev:'e',mid:'m'});assert.equal(calls.length,1);assert.ok(!elements.fields.innerHTML.includes('name="confirmed"'));assert.ok(!elements.fields.innerHTML.includes('伝達事項タブ'));await click({action:'close'});
+ await click({action:'answer',ev:'e',mid:'m'});assert.equal(calls.length,1);assert.ok(!elements.fields.innerHTML.includes('name="confirmed"'));assert.ok(!elements.fields.innerHTML.includes('伝達事項タブ'));assert.ok(elements.fields.innerHTML.includes('value="横浜 300 あ 1234"'));await click({action:'close'});
  for(const status of ['no','yes','']){await click({action:'quick',ev:'e',status});assert.equal(opened,true);assert.equal(calls.length,1);assert.equal(submit.textContent,'確定する');assert.ok(elements.fields.innerHTML.includes(`value="${status}" selected`));await click({action:'close'});assert.equal(opened,false);assert.equal(home.answers[0].status,'yes');}
  for(const car of ['yes','no','bicycle']){await click({action:'quick-car',ev:'e',car});assert.equal(calls.length,1);assert.ok(elements.fields.innerHTML.includes(`value="${car}" selected`));await click({action:'close'});}
  await click({action:'quick',ev:'e',status:'no'});
