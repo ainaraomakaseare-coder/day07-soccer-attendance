@@ -18,7 +18,8 @@ const dist = path.join(root, 'dist');
 // 公開してよいものだけを、ここに列挙する。増やすときは中身を確かめてから。
 const PUBLISH = ['index.html', 'admin.html', 'teian.html','day8-public.html', 'privacy.html',
                  'team.html', 'team.css','js/export-template.js','js/export.js', 'js/team.js', 'js/team-model.js',
-                 'js/db.js', 'js/auth.js', 'config.local.js'];
+                 'js/db.js', 'js/auth.js', 'config.local.js',
+                 'manifest.webmanifest', 'icons/apple-touch-icon.png', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 // 万一にも混ざってはいけないもの
 const NEVER = ['.env', '.env.local', '.env.production'];
