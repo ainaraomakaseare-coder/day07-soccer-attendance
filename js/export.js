@@ -33,11 +33,21 @@
   const end=new Uint8Array(22),e=new DataView(end.buffer);e.setUint32(0,0x06054b50,true);e.setUint16(8,directory.length,true);e.setUint16(10,directory.length,true);e.setUint32(12,dirSize,true);e.setUint32(16,offset,true);
   const out=new Uint8Array(offset+dirSize+22);let at=0;for(const b of [...chunks,...directory,end]){out.set(b,at);at+=b.length;}return out;
  }
- function create(data,event){
-  const {rows,warnings}=collect(data,event),pages=Math.max(1,Math.ceil(rows.length/25)),files={...template};let content='';
+ // 参加者の名前だけを並べた一覧。車両番号は含めないので、管理者以外も出力できる。
+ const roleLabel={player:'選手',staff:'スタッフ',ac:'AC',guest:'体験・ゲスト'};
+ function collectNames(data,event){
+  const rows=[];
+  for(const m of data.members.filter(m=>m.squad===event.squad&&m.active)){if(data.answers.some(a=>a.event_id===event.id&&a.member_id===m.id&&a.status==='yes'))rows.push({name:m.name,vehicle:roleLabel[m.member_role]||''});}
+  for(const g of data.guests.filter(g=>g.event_id===event.id&&g.status==='yes'))rows.push({name:g.name,vehicle:'助っ人'+(g.invited_by?'（声掛け：'+g.invited_by+'）':'')});
+  return rows;
+ }
+ function createNames(data,event){return build(collectNames(data,event),[],event,['人数','参加者氏名','区分'],'参加者一覧');}
+ function create(data,event){const {rows,warnings}=collect(data,event);return build(rows,warnings,event,['人数','参加者氏名（代表者を含む）','入場車両番号（バイクは「バイク」＋ナンバーと記載）'],'参加者名簿');}
+ function build(rows,warnings,event,headers,prefix){
+  const pages=Math.max(1,Math.ceil(rows.length/25)),files={...template};let content='';
   const cell=(ref,value,style)=>`<x:c r="${ref}" s="${style}" t="inlineStr"><x:is><x:t xml:space="preserve">${xml(value)}</x:t></x:is></x:c>`;
   for(let p=0;p<pages;p++){
-   let r=p*26+1;content+=`<x:row r="${r}" ht="30" customHeight="1">`+['人数','参加者氏名（代表者を含む）','入場車両番号（バイクは「バイク」＋ナンバーと記載）'].map((v,i)=>cell('ABC'[i]+r,v,7)).join('')+'</x:row>';
+   let r=p*26+1;content+=`<x:row r="${r}" ht="30" customHeight="1">`+headers.map((v,i)=>cell('ABC'[i]+r,v,7)).join('')+'</x:row>';
    for(let i=0;i<25;i++){r++;const n=p*25+i,entry=rows[n]||{};content+=`<x:row r="${r}" ht="22" customHeight="1"><x:c r="A${r}" s="4" t="n"><x:v>${n+1}</x:v></x:c>${cell('B'+r,entry.name,5)}${cell('C'+r,entry.vehicle,5)}</x:row>`;}
   }
   let sheet=files['xl/worksheets/sheet1.xml'].replace(/<x:sheetData>[\s\S]*?<\/x:sheetData>/,`<x:sheetData>${content}</x:sheetData>`);
@@ -47,9 +57,9 @@
   sheet=sheet.replace('</x:worksheet>',`<x:pageSetup paperSize="9" orientation="portrait" fitToWidth="1" fitToHeight="0"/><x:headerFooter><x:oddHeader>${xml('&L'+caption)}</x:oddHeader><x:oddFooter>&amp;R&amp;P / &amp;N</x:oddFooter></x:headerFooter>${pages>1?`<x:rowBreaks count="${pages-1}" manualBreakCount="${pages-1}">${Array.from({length:pages-1},(_,i)=>`<x:brk id="${(i+1)*26}" max="16383" man="1"/>`).join('')}</x:rowBreaks>`:''}</x:worksheet>`);
   files['xl/worksheets/sheet1.xml']=sheet;
   files['xl/workbook.xml']=files['xl/workbook.xml'].replace('</x:workbook>',`<x:definedNames><x:definedName name="_xlnm.Print_Area" localSheetId="0">'参加者名簿'!$A$1:$C$${pages*26}</x:definedName></x:definedNames></x:workbook>`);
-  const filename=('参加者名簿_'+event.event_date+'_'+(event.place||'会場未定')).replace(/[<>:"/\\|?*\u0000-\u001f]/g,'_').slice(0,130)+'.xlsx';
+  const filename=(prefix+'_'+event.event_date+'_'+(event.place||'会場未定')).replace(/[<>:"/\\|?*\u0000-\u001f]/g,'_').slice(0,130)+'.xlsx';
   return {bytes:zip(files),filename,count:rows.length,pages,warnings};
  }
  function download(result){const url=URL.createObjectURL(new Blob([result.bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));const a=document.createElement('a');a.href=url;a.download=result.filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
- const api={collect,create,download};if(typeof module!=='undefined')module.exports=api;else root.AttendanceExport=api;
+ const api={collect,collectNames,create,createNames,download};if(typeof module!=='undefined')module.exports=api;else root.AttendanceExport=api;
 })(typeof window!=='undefined'?window:globalThis);

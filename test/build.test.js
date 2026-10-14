@@ -28,6 +28,14 @@ test('event Excel contains only attendees, protects text and paginates every 25'
  data.answers[0].vehicle_plate='';assert.equal(E.create(data,event).warnings.length,1);
  assert.equal(E.create({members:[],answers:[],guests:[]},event).pages,1);
 });
+test('name list Excel has attendees and guests but never vehicle plates',()=>{
+ const E=require('../js/export');const event={id:'e',squad:'main',event_date:'2026-09-01',place:'体育館',asks_car:true};
+ const members=[{id:'a',name:'出席選手',squad:'main',active:true,member_role:'player'},{id:'b',name:'欠席者',squad:'main',active:true,member_role:'player'},{id:'c',name:'休会者',squad:'main',active:false,member_role:'staff'}];
+ const data={members,answers:[{member_id:'a',event_id:'e',status:'yes',car:'yes',vehicle_plate:'横浜 300 あ 1234'},{member_id:'b',event_id:'e',status:'no',car:null,vehicle_plate:'品川 い 5678'},{member_id:'c',event_id:'e',status:'yes'}],guests:[{event_id:'e',name:'助っ人',invited_by:'出席選手',status:'yes',car:true,vehicle_plate:'横浜 500 い 9999'},{event_id:'e',name:'欠席助っ人',status:'no'}]};
+ assert.deepEqual(E.collectNames(data,event),[{name:'出席選手',vehicle:'選手'},{name:'助っ人',vehicle:'助っ人（声掛け：出席選手）'}]);
+ const result=E.createNames(data,event);assert.equal(result.count,2);assert.ok(result.filename.startsWith('参加者一覧_'));
+ const text=new TextDecoder().decode(result.bytes);assert.ok(!text.includes('横浜'));assert.ok(!text.includes('品川'));assert.ok(!text.includes('入場車両番号'));
+});
 test('main-only UI hides junior entry and ignores previously selected junior group',async()=>{
  const vm=require('node:vm');const source=fs.readFileSync(path.join(root,'js/team.js'),'utf8');
  async function page(hash,events=[]){
@@ -94,7 +102,7 @@ test('attendance choices only save on explicit confirmation; cancel keeps saved 
 test('publish whitelist includes team assets but never SQL, tests or secrets',()=>{
  // 空の一時コピーだけでビルドする。本番のconfig.local.jsやdistに触れない。
  const temp=fs.mkdtempSync(path.join(os.tmpdir(),'agape-build-test-'));
- const files=['index.html','admin.html','teian.html','day8-public.html','privacy.html','team.html','team.css','js/export-template.js','js/export.js','js/db.js','js/auth.js','js/team.js','js/team-model.js','scripts/setup-config.js','scripts/build.js'];
+ const files=['index.html','admin.html','teian.html','day8-public.html','privacy.html','team.html','team.css','js/export-template.js','js/export.js','js/db.js','js/auth.js','js/team.js','js/team-model.js','manifest.webmanifest','icons/apple-touch-icon.png','icons/icon-192.png','icons/icon-512.png','scripts/setup-config.js','scripts/build.js'];
  for(const f of files){const to=path.join(temp,f);fs.mkdirSync(path.dirname(to),{recursive:true});fs.copyFileSync(path.join(root,f),to);}
  const env={...process.env,SUPABASE_URL:'https://build-test.supabase.co',SUPABASE_ANON_KEY:'sb_publishable_build_test_not_real'};
  execFileSync(process.execPath,[path.join(temp,'scripts/build.js')],{env,stdio:'pipe'});
