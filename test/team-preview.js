@@ -21,6 +21,9 @@ const publicFiles=['team.html','team.css','js/export-template.js','js/export.js'
  const signupUid='33333333-3333-4333-8333-333333333333';
  await db.query("insert into auth.users(id,email) values($1,'signup@example.com')",[signupUid]);
  await db.exec("update team_config set registration_code='2468'");
+ // 検証用にポイント制を今日から開始し、仮ログイン本人へ2000円分（11ポイント）を付与する。
+ await db.query('update team_config set points_start=$1',[day(0)]);
+ {const c=(await db.query('select data_version from team_config')).rows[0];await rpc(db,'team_points',{p_key:admin,p_admin:true,p_version:c.data_version,p_actor:'デモ担当',p_action:'charge',p_data:{member_id:m.id,amount:2000}});}
  await write('answer',{event_id:e.id,member_id:m.id,status:'yes',car:'yes',vehicle_plate:'横浜 300 あ 1234'});
  await write('guest',{event_id:e.id,name:'体験ゲスト',invited_by:'テスト選手B',status:'yes',car:false});
  await write('notice',{squad:'main',body:'飲み物を忘れずに。遅刻の連絡は各予定の回答欄に記入できます。',notice_date:day(0)});
