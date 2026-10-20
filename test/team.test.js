@@ -242,3 +242,99 @@ test('annual count: fiscal year boundary, only past/current days, no other-membe
  const d={year_start_month:4,events:[{id:'a',squad:'main',event_date:'2025-03-31'},{id:'b',squad:'main',event_date:'2025-04-01'},{id:'c',squad:'main',event_date:'2099-05-01'}],answers:[{event_id:'a',member_id:'m',status:'yes'},{event_id:'b',member_id:'m',status:'yes'},{event_id:'b',member_id:'n',status:'yes'},{event_id:'c',member_id:'m',status:'yes'}]};
  assert.equal(M.annual(d,{id:'m',squad:'main'},2025),1);assert.equal(M.annual(d,{id:'m',squad:'main'},2099),0);assert.equal(M.yearFor('2026-03-31',4),2025);
 });
+test('participation points: charge, request, consumption, zero-balance block and privacy',async(t)=>{
+ const db=await createDB();t.after(()=>db.close());
+ const c=(await db.query('select * from team_config')).rows[0];
+ const uid='44444444-4444-4444-8444-444444444444',otherUid='55555555-5555-4555-8555-555555555555';
+ await db.query('insert into auth.users(id,email) values($1,$2),($3,$4)',[uid,'pt@example.com',otherUid,'pt2@example.com']);
+ const as=mode=>({key:mode==='admin'?c.admin_token:mode==='junior'?c.shared_token:'',admin:mode==='admin',user:mode==='main'?uid:mode==='other'?otherUid:''});
+ const home=(mode='main')=>{const a=as(mode);return rpc(db,'team_home',{p_key:a.key,p_admin:a.admin},a.user);};
+ const write=async(action,payload,mode='main')=>{const a=as(mode);return rpc(db,'team_write',{p_key:a.key,p_admin:a.admin,p_version:(await home(mode)).version,p_actor:'会計係',p_action:action,p_data:payload},a.user);};
+ const points=async(action,payload,mode='main')=>{const a=as(mode);return rpc(db,'team_points',{p_key:a.key,p_admin:a.admin,p_version:(await home(mode)).version,p_actor:'会計係',p_action:action,p_data:payload},a.user);};
+ let h=await write('member',{squad:'main',name:'ポイント本人',email:'pt@example.com'},'admin');const mid=h.members[0].id;
+ h=await write('member',{squad:'main',name:'ポイント別人',email:'pt2@example.com'},'admin');const other=h.members.find(m=>m.name==='ポイント別人').id;
+ const ev={};
+ for(const d of ['2026-11-29','2026-12-01','2026-12-06','2026-12-13']){h=await write('event',{squad:'main',event_date:d,asks_car:false},'admin');ev[d]=h.events.find(e=>e.event_date===d).id;}
+ h=await write('event',{squad:'junior',event_date:'2026-12-02'},'admin');const jev=h.events.find(e=>e.squad==='junior').id;
+ const mine=async()=>(await home()).me.points;
+ await t.test('starts at zero; answers before the start date are free',async()=>{
+  assert.equal((await home()).points_start,'2026-12-01');
+  assert.deepEqual(await mine(),{total:0,used:0,remaining:0});
+  await write('answer',{event_id:ev['2026-11-29'],member_id:mid,status:'yes'});
+  assert.deepEqual(await mine(),{total:0,used:0,remaining:0});
+  await assert.rejects(write('answer',{event_id:ev['2026-12-01'],member_id:mid,status:'yes'}),/ポイント残数が0/);
+  await assert.rejects(write('answer',{event_id:ev['2026-12-01'],member_id:mid,status:'yes'},'admin'),/ポイント残数が0/);
+  await write('answer',{event_id:ev['2026-12-01'],member_id:mid,status:'no'});
+ });
+ await t.test('members request a charge; only admins grant points',async()=>{
+  await assert.rejects(points('request',{amount:3000}),/2000円単位/);
+  await assert.rejects(points('request',{amount:0}),/2000円単位/);
+  h=await points('request',{amount:4000});assert.equal(h.my_point_requests[0].amount,4000);
+  await assert.rejects(points('request',{amount:2000}),/申請中/);
+  await assert.rejects(points('charge',{member_id:mid,amount:4000}),/管理者/);
+  await assert.rejects(points('adjust',{member_ids:[mid],delta:5,reason:'不正'}),/管理者/);
+  const a=await home('admin');assert.equal(a.point_requests.length,1);assert.equal(a.point_requests[0].member_id,mid);
+  await assert.rejects(points('charge',{member_id:other,amount:4000,request_id:a.point_requests[0].id},'admin'),/追加申請/);
+  await assert.rejects(points('charge',{member_id:mid,amount:5000},'admin'),/2000円単位/);
+  h=await points('charge',{member_id:mid,amount:4000,request_id:a.point_requests[0].id,ledger:true},'admin');
+  assert.deepEqual(h.points[mid],{total:22,used:0,remaining:22});assert.equal(h.point_requests.length,0);
+  const l=h.ledger.find(x=>x.description==='チャージ（ポイント本人）');assert.equal(l.income,4000);assert.equal(l.squad,'main');assert.equal(l.planned,false);
+  assert.equal(h.history[0].action,'points_charge');assert.equal(h.history[0].after_value.delta,22);
+  h=await home();assert.deepEqual(h.me.points,{total:22,used:0,remaining:22});assert.deepEqual(h.my_point_requests,[]);
+  await points('charge',{member_id:other,amount:2000},'admin');
+  assert.equal((await home('admin')).ledger.filter(x=>x.description.startsWith('チャージ')).length,1);
+ });
+ await t.test('attending consumes a point, including future events; re-saving does not double count',async()=>{
+  await write('answer',{event_id:ev['2026-12-01'],member_id:mid,status:'yes'});
+  await write('answer',{event_id:ev['2026-12-13'],member_id:mid,status:'yes'});
+  assert.deepEqual(await mine(),{total:22,used:2,remaining:20});
+  await write('answer',{event_id:ev['2026-12-13'],member_id:mid,status:'yes',note:'遅刻します'});
+  assert.deepEqual(await mine(),{total:22,used:2,remaining:20});
+  await write('answer',{event_id:ev['2026-12-13'],member_id:mid,status:'no'});
+  assert.deepEqual(await mine(),{total:22,used:1,remaining:21});
+  await write('answer',{event_id:jev,member_id:(await write('member',{squad:'junior',name:'Jr'},'admin')).members.find(m=>m.squad==='junior').id,status:'yes'},'admin');
+ });
+ await t.test('adjust selected members; reaching zero blocks new attendance until topped up',async()=>{
+  await assert.rejects(points('adjust',{member_ids:[mid],delta:0,reason:'x'},'admin'),/0以外/);
+  await assert.rejects(points('adjust',{member_ids:[mid],delta:-21,reason:''},'admin'),/理由/);
+  await assert.rejects(points('adjust',{member_ids:[],delta:1,reason:'x'},'admin'),/メンバー/);
+  h=await points('adjust',{member_ids:[mid],delta:-21,reason:'入力ミスの修正'},'admin');assert.equal(h.points[mid].remaining,0);
+  await assert.rejects(write('answer',{event_id:ev['2026-12-06'],member_id:mid,status:'yes'}),/ポイント残数が0/);
+  // 既に出席の予定は残数0でも内容を直せる
+  await write('answer',{event_id:ev['2026-12-01'],member_id:mid,status:'yes',note:'変更'});
+  h=await points('adjust',{member_ids:[mid,other],delta:1,reason:'無料デー'},'admin');
+  assert.equal(h.points[mid].remaining,1);assert.equal(h.points[other].total,12);
+  await write('answer',{event_id:ev['2026-12-06'],member_id:mid,status:'yes'});
+  assert.equal((await mine()).remaining,0);
+  // 欠席に変えた後、残数0のまま出席へ取り消すことはできない
+  await write('answer',{event_id:ev['2026-12-06'],member_id:mid,status:'no'});
+  await write('answer',{event_id:ev['2026-12-13'],member_id:mid,status:'yes'});
+  const hist=(await home()).history.find(x=>x.action==='answer'&&x.entity.includes(ev['2026-12-06'])).id;
+  await write('answer',{event_id:ev['2026-12-13'],member_id:mid,status:'no'});
+  await write('answer',{event_id:ev['2026-12-01'],member_id:mid,status:'no'});
+  await write('answer',{event_id:ev['2026-12-13'],member_id:mid,status:'yes'});await write('answer',{event_id:ev['2026-12-01'],member_id:mid,status:'yes'});
+  assert.equal((await mine()).remaining,-1+1);
+  await assert.rejects(write('undo_answer',{history_id:hist}),/ポイント残数が0/);
+ });
+ await t.test('cancelling requests and privacy of balances',async()=>{
+  h=await points('request',{amount:2000});const id=h.my_point_requests[0].id;
+  await assert.rejects(points('cancel_request',{id},'other'),/自分/);
+  h=await points('cancel_request',{id});assert.deepEqual(h.my_point_requests,[]);
+  h=await home('other');assert.equal(h.points,undefined);assert.equal(h.point_requests,undefined);assert.equal(h.me.points.total,12);
+  assert.ok(!h.history.some(x=>x.action.startsWith('points_')));assert.deepEqual(h.ledger,[]);
+  const j=await home('junior');assert.equal(j.points_start,undefined);assert.equal(j.points,undefined);
+  await assert.rejects(rpc(db,'team_points',{p_key:c.shared_token,p_admin:false,p_version:j.version,p_actor:'x',p_action:'request',p_data:{amount:2000}}),/メイン/);
+  await assert.rejects(rpc(db,'team_points',{p_key:'',p_admin:false,p_version:j.version,p_actor:'x',p_action:'request',p_data:{amount:2000}}),/ログイン/);
+  await assert.rejects(rpc(db,'team_points',{p_key:'',p_admin:false,p_version:0,p_actor:'x',p_action:'request',p_data:{amount:2000}},uid),/他の人/);
+ });
+ await t.test('admin can move or disable the start date from settings',async()=>{
+  const a=await home('admin');
+  const base={year_start_month:a.year_start_month,main_fee:200,junior_fee:a.junior_fee,main_opening:a.main_opening,junior_opening:a.junior_opening,bib_guide:a.bib_guide};
+  await assert.rejects(write('settings',{...base,points_start:''}),/管理者/);
+  h=await write('settings',{...base,points_start:''},'admin');assert.equal(h.points_start,null);assert.equal(h.main_fee,200);
+  await write('answer',{event_id:ev['2026-12-06'],member_id:mid,status:'yes'});
+  assert.equal((await mine()).used,0);
+  h=await write('settings',{...base,points_start:'2026-12-01'},'admin');assert.equal(h.points[mid].used,3);
+  h=await write('settings',base,'admin');assert.equal(h.points_start,'2026-12-01');
+ });
+});

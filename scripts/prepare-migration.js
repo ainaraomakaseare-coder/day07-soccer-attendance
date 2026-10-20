@@ -6,5 +6,6 @@ let schema=fs.readFileSync(path.join(root,'db/schema.sql'),'utf8');
 schema=schema.replace(/^select admin_token as .*$/m,'');
 const team=fs.readFileSync(path.join(root,'db/team.sql'),'utf8');
 const access=fs.readFileSync(path.join(root,'db/access.sql'),'utf8');
-fs.writeFileSync(path.join(out,'migration.sql'),`-- 承認後にSupabase SQL Editorで実行。既存の名簿や出欠は削除しない。\nBEGIN;\nSET LOCAL lock_timeout = '5s';\nSET LOCAL statement_timeout = '60s';\n${schema}\n${team}\n${access}\nNOTIFY pgrst, 'reload schema';\nCOMMIT;\nSELECT 'migration_complete' AS result;\n`);
+const points=fs.readFileSync(path.join(root,'db/points.sql'),'utf8');
+fs.writeFileSync(path.join(out,'migration.sql'),`-- 承認後にSupabase SQL Editorで実行。既存の名簿や出欠は削除しない。\nBEGIN;\nSET LOCAL lock_timeout = '5s';\nSET LOCAL statement_timeout = '60s';\n${schema}\n${team}\n${access}\n${points}\nNOTIFY pgrst, 'reload schema';\nCOMMIT;\nSELECT 'migration_complete' AS result;\n`);
 console.log('work/migration.sql を生成しました（未実行・既存データ削除なし）。');

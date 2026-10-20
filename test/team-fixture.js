@@ -12,10 +12,11 @@ async function createDB(beforeMigration){
  await db.exec(fs.readFileSync(path.join(root,'db/schema.sql'),'utf8'));
  await db.exec(fs.readFileSync(path.join(root,'db/team.sql'),'utf8'));
  await db.exec(fs.readFileSync(path.join(root,'db/access.sql'),'utf8'));
+ await db.exec(fs.readFileSync(path.join(root,'db/points.sql'),'utf8'));
  return db;
 }
 async function rpc(db,fn,args,userId=''){
- const allowed={team_home:['p_key','p_admin'],team_write:['p_key','p_admin','p_version','p_actor','p_action','p_data'],team_delete_guest:['p_key','p_admin','p_version','p_actor','p_id'],admin_shared_link:['p_admin'],join_main:['p_code','p_name'],admin_registration_code:['p_admin','p_code']};
+ const allowed={team_home:['p_key','p_admin'],team_write:['p_key','p_admin','p_version','p_actor','p_action','p_data'],team_delete_guest:['p_key','p_admin','p_version','p_actor','p_id'],admin_shared_link:['p_admin'],join_main:['p_code','p_name'],admin_registration_code:['p_admin','p_code'],team_points:['p_key','p_admin','p_version','p_actor','p_action','p_data']};
  if(!allowed[fn])throw new Error('Unsupported test RPC');
  const names=allowed[fn].filter(n=>Object.hasOwn(args,n));
  const sql=`select ${fn}(${names.map((n,i)=>`${n} => $${i+1}`).join(',')}) as result`;

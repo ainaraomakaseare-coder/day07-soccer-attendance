@@ -249,6 +249,10 @@ begin
   old_value:=jsonb_build_object('year_start_month',cfg.year_start_month,'main_fee',cfg.main_fee,'junior_fee',cfg.junior_fee,'main_opening',cfg.main_opening,'junior_opening',cfg.junior_opening,'bib_guide',cfg.bib_guide);
   update team_config set year_start_month=(p_data->>'year_start_month')::int,main_fee=(p_data->>'main_fee')::int,junior_fee=(p_data->>'junior_fee')::int,
    main_opening=(p_data->>'main_opening')::bigint,junior_opening=(p_data->>'junior_opening')::bigint,bib_guide=left(coalesce(p_data->>'bib_guide',''),2000) where id=1;
+  if p_data ? 'points_start' then
+   update team_config set points_start=nullif(p_data->>'points_start','')::date where id=1;
+   old_value:=old_value||jsonb_build_object('points_start',cfg.points_start);
+  end if;
   new_value:=p_data; entity_key:='settings';
  elsif p_action='rotate_link' then
   update team_config set shared_token=replace(gen_random_uuid()::text,'-','') where id=1;

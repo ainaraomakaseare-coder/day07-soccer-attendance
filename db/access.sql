@@ -92,9 +92,11 @@ begin
   'ledger',case when p_admin is not true then '[]'::jsonb else coalesce((select jsonb_agg(x) from jsonb_array_elements(result->'ledger') x where scope='all' or x->>'squad'=scope),'[]'::jsonb) end,
   'bibs',case when scope='main' then '[]'::jsonb else result->'bibs' end,
   'history',coalesce((select jsonb_agg(case when p_admin is true then x else x||jsonb_build_object('before_value',nullif(x->'before_value','null'::jsonb)-'vehicle_plate','after_value',nullif(x->'after_value','null'::jsonb)-'vehicle_plate') end)
-    from jsonb_array_elements(result->'history') x where p_admin is true or (x->>'squad'=scope and x->>'action' not in ('ledger','delete_ledger','settings'))),'[]'::jsonb));
+    from jsonb_array_elements(result->'history') x where p_admin is true or (x->>'squad'=scope and x->>'action' not in ('ledger','delete_ledger','settings','points_charge','points_adjust','points_request','points_request_cancel'))),'[]'::jsonb));
  if p_admin is true then result:=result||jsonb_build_object('registration_code',(select registration_code from team_config where id=1)); end if;
  if p_admin is not true then result:=result-'main_opening'-'junior_opening'-'main_fee'-'junior_fee'; end if;
+ -- 参加費ポイント（points.sql）。本人には自分の残数、管理者には全員の残数と申請を返す。
+ result:=app_points_home(result,me,p_admin,scope);
  return result;
 end $$;
 
@@ -187,6 +189,8 @@ begin
    plate:=app_validate_plate(coalesce(nullif(trim(p_data->>'vehicle_plate'),''),(select nullif(vehicle_plate,'') from attendance where member_id=target_member and event_id=target_event),(select vehicle_plate from members where id=target_member)));
   end if;
  end if;
+ if p_action='answer' and p_data->>'status'='yes' then perform app_points_guard(target_member,target_event); end if;
+ if p_action='undo_answer' and hist.before_value->>'status'='yes' then perform app_points_guard(target_member,target_event); end if;
  if p_action='guest' then
   if coalesce((p_data->>'uses_bicycle')::boolean,false) and coalesce((p_data->>'car')::boolean,false) then raise exception '車と自転車はどちらかを選んでください'; end if;
   if item is not null then
