@@ -220,6 +220,13 @@ begin
   original_plate:=coalesce(hist.before_value->>'vehicle_plate','');
   update attendance set vehicle_plate=case when car='yes' or coalesce((hist.before_value->>'uses_bicycle')::boolean,false) then original_plate else '' end,uses_bicycle=coalesce((hist.before_value->>'uses_bicycle')::boolean,false) where event_id=target_event and member_id=target_member;
   update team_history set after_value=(select to_jsonb(a) from attendance a where member_id=target_member and event_id=target_event) where id=h_id;
+ elsif p_action='ledger' then
+  -- チャージを会計に記録したらポイントも同時に付与・修正する（points.sql）。
+  item:=(select (after_value->>'id')::uuid from team_history where id=h_id);
+  perform app_ledger_charge_sync(item,nullif(p_data->>'charge_member_id','')::uuid,nullif(p_data->>'point_request_id','')::uuid,actual_actor);
+  update team_history set after_value=(select to_jsonb(l) from team_ledger l where id=item) where id=h_id;
+ elsif p_action='delete_ledger' then
+  delete from team_points where ledger_id=item;
  elsif p_action='event' then
   item:=(select (after_value->>'id')::uuid from team_history where id=h_id);
   if not (select asks_car from events where id=item) then

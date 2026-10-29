@@ -12,7 +12,7 @@ const publicFiles=['team.html','team.css','js/export-template.js','js/export.js'
   for(const name of names)await write('member',{name,squad,member_role:name.includes('スタッフ')?'staff':'player',affiliation:'サンプルクラブ',grade:squad==='junior'?'小3':''});
  }
  const day=n=>new Date(Date.now()+n*86400000).toISOString().slice(0,10);
- for(const [squad,n,place,car] of [['main',2,'泉スポーツセンター',true],['main',9,'中外',true],['junior',4,'ひぐみ体育館',false],['main',-8,'泉スポーツセンター',true]])await write('event',{squad,event_date:day(n),start_time:'17:00',end_time:'19:00',deadline:day(n-5),place,asks_car:car,booking_person:'デモ担当',note:'動作確認用の予定です。実際の予定ではありません。',cleaning:squad==='junior'});
+ for(const [squad,n,place,car] of [['main',2,'泉スポーツセンター',true],['main',9,'中外',true],['main',12,'新横浜FBP（大会）',false],['junior',4,'ひぐみ体育館',false],['main',-8,'泉スポーツセンター',true]])await write('event',{squad,event_date:day(n),start_time:'17:00',end_time:'19:00',deadline:day(n-5),place,asks_car:car,booking_person:'デモ担当',note:'動作確認用の予定です。実際の予定ではありません。',cleaning:squad==='junior',points_target:!place.includes('大会')});
  let h=await rpc(db,'team_home',{p_key:admin,p_admin:true});
  const m=h.members.find(m=>m.squad==='main'),j=h.members.find(m=>m.squad==='junior'),e=h.events.find(e=>e.event_date>=day(0)&&e.squad==='main');
  const uid='11111111-1111-4111-8111-111111111111';

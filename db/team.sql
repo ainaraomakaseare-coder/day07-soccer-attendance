@@ -161,6 +161,8 @@ begin
    kind=coalesce(p_data->>'kind','practice'),place=left(coalesce(p_data->>'place',''),200),note=left(coalesce(p_data->>'note',''),2000),
    booking_person=left(coalesce(p_data->>'booking_person',''),80),cleaning=coalesce((p_data->>'cleaning')::boolean,false),
    asks_car=coalesce((p_data->>'asks_car')::boolean,false) where id=item;
+  -- ポイント対象（points.sql）。指定がなければ対象のまま。
+  if p_data ? 'points_target' then update events set points_target=coalesce((p_data->>'points_target')::boolean,true) where id=item; end if;
   if not (select asks_car from events where id=item) then
    update attendance set car=null where event_id=item;
    update team_guests set car=false where event_id=item;
