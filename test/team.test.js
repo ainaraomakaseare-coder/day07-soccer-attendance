@@ -338,3 +338,74 @@ test('participation points: charge, request, consumption, zero-balance block and
   h=await write('settings',base,'admin');assert.equal(h.points_start,'2026-12-01');
  });
 });
+test('points: non-target events, charges entered in the ledger and the public finance summary',async(t)=>{
+ const db=await createDB();t.after(()=>db.close());
+ const c=(await db.query('select * from team_config')).rows[0];
+ const uid='66666666-6666-4666-8666-666666666666';
+ await db.query('insert into auth.users(id,email) values($1,$2)',[uid,'acc@example.com']);
+ const as=mode=>({key:mode==='admin'?c.admin_token:'',admin:mode==='admin',user:mode==='main'?uid:''});
+ const home=(mode='main')=>{const a=as(mode);return rpc(db,'team_home',{p_key:a.key,p_admin:a.admin},a.user);};
+ const write=async(action,payload,mode='main')=>{const a=as(mode);return rpc(db,'team_write',{p_key:a.key,p_admin:a.admin,p_version:(await home(mode)).version,p_actor:'会計係',p_action:action,p_data:payload},a.user);};
+ const points=async(action,payload,mode='main')=>{const a=as(mode);return rpc(db,'team_points',{p_key:a.key,p_admin:a.admin,p_version:(await home(mode)).version,p_actor:'会計係',p_action:action,p_data:payload},a.user);};
+ let h=await write('member',{squad:'main',name:'会計本人',email:'acc@example.com'},'admin');const mid=h.members[0].id;
+ h=await write('event',{squad:'main',event_date:'2026-12-29',asks_car:false,points_target:false},'admin');const tour=h.events[0].id;
+ assert.equal(h.events[0].points_target,false);
+ h=await write('event',{squad:'main',event_date:'2026-12-06',asks_car:false},'admin');const prac=h.events.find(e=>e.id!==tour).id;
+ assert.equal(h.events.find(e=>e.id===prac).points_target,true);
+ await t.test('events outside the point system neither block nor consume',async()=>{
+  await write('answer',{event_id:tour,member_id:mid,status:'yes'});
+  assert.deepEqual((await home()).me.points,{total:0,used:0,remaining:0});
+  await assert.rejects(write('answer',{event_id:prac,member_id:mid,status:'yes'}),/ポイント残数が0/);
+  // 後から対象に戻すと、その予定の出席分が消費に入る
+  const e=(await home('admin')).events.find(x=>x.id===tour);
+  h=await write('event',{...e,points_target:true},'admin');assert.equal(h.points[mid].remaining,-1);
+  h=await write('event',{...e,points_target:false},'admin');assert.equal(h.points[mid].remaining,0);
+ });
+ await t.test('a charge entered in the ledger grants points; edits and deletion follow it',async()=>{
+  const base={squad:'main',entry_date:'2026-12-01',description:'チャージ（会計本人）',expense:0,fee:0,people:0};
+  await assert.rejects(write('ledger',{...base,income:3000,charge_member_id:mid},'admin'),/2000円単位/);
+  await assert.rejects(write('ledger',{...base,income:2000,expense:100,charge_member_id:mid},'admin'),/支出を0/);
+  await assert.rejects(write('ledger',{...base,squad:'junior',income:2000,charge_member_id:mid},'admin'),/メイン会計/);
+  h=await points('request',{amount:4000});const req=h.my_point_requests[0].id;
+  h=await write('ledger',{...base,income:4000,charge_member_id:mid,point_request_id:req},'admin');
+  const row=h.ledger.find(l=>l.charge_member_id===mid);
+  assert.deepEqual(h.points[mid],{total:22,used:0,remaining:22});assert.equal(h.point_requests.length,0);
+  h=await write('ledger',{...row,income:2000,charge_member_id:mid},'admin');assert.equal(h.points[mid].total,11);
+  h=await write('ledger',{...row,income:2000,charge_member_id:mid,planned:true},'admin');assert.equal(h.points[mid].total,0);
+  h=await write('ledger',{...row,income:2000,charge_member_id:mid,planned:false},'admin');assert.equal(h.points[mid].total,11);
+  h=await write('ledger',{...row,income:2000,charge_member_id:''},'admin');assert.equal(h.points[mid].total,0);
+  h=await write('ledger',{...row,income:2000,charge_member_id:mid},'admin');assert.equal(h.points[mid].total,11);
+  h=await write('delete_ledger',{id:row.id},'admin');assert.equal(h.points[mid].total,0);
+  // ボタンからのチャージも会計の行と結びつき、行を消すとポイントも消える
+  h=await points('charge',{member_id:mid,amount:2000,ledger:true},'admin');
+  const linked=h.ledger.find(l=>l.charge_member_id===mid);assert.ok(linked);assert.equal(h.points[mid].total,11);
+  h=await write('ledger',{...linked,note:'メモ追記'},'admin');assert.equal(h.points[mid].total,11);
+  h=await points('charge',{member_id:mid,amount:2000},'admin');assert.equal(h.points[mid].total,22);
+  h=await write('delete_ledger',{id:linked.id},'admin');assert.equal(h.points[mid].total,11);
+ });
+ await t.test('everyone sees the finance summary, but not the ledger rows',async()=>{
+  await write('settings',{year_start_month:4,main_fee:200,junior_fee:100,main_opening:10000,junior_opening:0,bib_guide:''},'admin');
+  await write('ledger',{squad:'main',entry_date:'2026-12-06',description:'体育館',expense:2600,fee:0,people:0},'admin');
+  await write('ledger',{squad:'main',entry_date:'2026-12-20',description:'未確定',expense:5000,fee:0,people:0,planned:true},'admin');
+  // 口座：10000 + 2000（ボタンチャージ分は行を消したので0）… 実際の行で検算する
+  const a=await home('admin');const account=M.ledger(a,'main').balance;
+  await write('answer',{event_id:prac,member_id:mid,status:'yes'});
+  const me=await home();assert.deepEqual(me.ledger,[]);
+  assert.equal(me.finance.account_balance,account);assert.equal(me.points_start,'2026-12-01');
+  assert.equal(me.me.points.remaining,10);
+  assert.equal(me.finance.charge_balance,10*200);assert.equal(me.finance.surplus,account-2000);
+  assert.ok(!JSON.stringify(me).includes('体育館'));
+ });
+});
+test('points migration links earlier button charges to their ledger rows',async(t)=>{
+ const db=await createDB();t.after(()=>db.close());
+ const c=(await db.query('select * from team_config')).rows[0];
+ const call=async(fn,action,data)=>rpc(db,fn,{p_key:c.admin_token,p_admin:true,p_version:(await rpc(db,'team_home',{p_key:c.admin_token,p_admin:true})).version,p_actor:'会計係',p_action:action,p_data:data});
+ let h=await call('team_write','member',{squad:'main',name:'旧チャージ'});const mid=h.members[0].id;
+ h=await call('team_points','charge',{member_id:mid,amount:2000,ledger:true});
+ await db.exec('update team_ledger set charge_member_id=null');
+ await db.exec(fs.readFileSync(path.join(root,'db/points.sql'),'utf8'));
+ h=await rpc(db,'team_home',{p_key:c.admin_token,p_admin:true});const row=h.ledger[0];
+ assert.equal(row.charge_member_id,mid);
+ h=await call('team_write','ledger',{...row,note:'修正'});assert.equal(h.points[mid].total,11);
+});

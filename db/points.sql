@@ -3,6 +3,8 @@
 -- 付与・調整は管理者だけ。メンバーは自分の残数・累計の閲覧と追加申請だけ。助っ人は対象外。
 alter table team_config add column if not exists points_start date default '2026-12-01';
 alter table team_config add column if not exists charge_unit int not null default 2000 check (charge_unit between 1 and 1000000);
+alter table events add column if not exists points_target boolean not null default true;
+alter table team_ledger add column if not exists charge_member_id uuid references members(id) on delete set null;
 alter table team_config add column if not exists charge_points int not null default 11 check (charge_points between 1 and 1000);
 
 create table if not exists team_points (
@@ -21,6 +23,9 @@ create table if not exists team_point_requests (
  status text not null default 'pending' check (status in ('pending','approved','cancelled')),
  created_at timestamptz not null default now(), resolved_at timestamptz, resolved_by text not null default ''
 );
+-- 列追加前にボタンから会計へ記録したチャージは、ポイント側の記録から対象メンバーを補う。
+update team_ledger l set charge_member_id=p.member_id from team_points p
+ where p.ledger_id=l.id and l.charge_member_id is null;
 create index if not exists team_points_member_idx on team_points(member_id);
 create index if not exists team_point_requests_member_idx on team_point_requests(member_id,status);
 alter table team_points enable row level security;
@@ -34,7 +39,7 @@ begin
  select points_start into start_date from team_config where id=1;
  select coalesce(sum(delta),0) into total from team_points where member_id=p_member;
  select count(*) into used from attendance a join events e on e.id=a.event_id
-  where a.member_id=p_member and a.status='yes' and e.squad='main' and start_date is not null and e.event_date>=start_date;
+  where a.member_id=p_member and a.status='yes' and e.squad='main' and e.points_target and start_date is not null and e.event_date>=start_date;
  return jsonb_build_object('total',total,'used',used,'remaining',total-used);
 end $$;
 revoke all on function app_member_points(uuid) from public,anon,authenticated;
@@ -47,7 +52,7 @@ declare start_date date; ev events;
 begin
  select points_start into start_date from team_config where id=1;
  select * into ev from events where id=p_event;
- if start_date is null or not found or ev.squad<>'main' or ev.event_date<start_date then return; end if;
+ if start_date is null or not found or ev.squad<>'main' or not ev.points_target or ev.event_date<start_date then return; end if;
  if exists(select 1 from attendance where member_id=p_member and event_id=p_event and status='yes') then return; end if;
  if (app_member_points(p_member)->>'remaining')::int<=0 then
   raise exception 'ポイント残数が0のため「出席」を選べません。チャージをしてポイントの追加申請をしてください' using errcode='P0001';
@@ -61,7 +66,7 @@ declare cfg team_config; r jsonb:=p_result;
 begin
  if p_scope='junior' then return r; end if;
  select * into cfg from team_config where id=1;
- r:=r||jsonb_build_object('points_start',cfg.points_start,'charge_unit',cfg.charge_unit,'charge_points',cfg.charge_points);
+ r:=r||jsonb_build_object('points_start',cfg.points_start,'charge_unit',cfg.charge_unit,'charge_points',cfg.charge_points,'finance',app_finance_summary());
  if p_me.id is not null and r->'me' is not null and jsonb_typeof(r->'me')='object' then
   r:=jsonb_set(r,'{me,points}',app_member_points(p_me.id));
   r:=r||jsonb_build_object('my_point_requests',coalesce((select jsonb_agg(jsonb_build_object('id',id,'amount',amount,'created_at',created_at) order by created_at)
@@ -76,6 +81,54 @@ begin
  return r;
 end $$;
 revoke all on function app_points_home(jsonb,members,boolean,text) from public,anon,authenticated;
+
+-- 会計の行にチャージしたメンバーを指定すると、金額に応じてポイントを付与する。
+-- 行の修正・削除ではポイントも作り直す（その行に紐づくポイントだけ）。未確定の行は付与しない。
+create or replace function app_ledger_charge_sync(p_ledger uuid,p_member uuid,p_request uuid,p_actor text) returns void
+language plpgsql security definer set search_path=public,pg_temp as $$
+declare cfg team_config; l team_ledger; target members; amt int; q team_point_requests;
+begin
+ select * into cfg from team_config where id=1;
+ select * into l from team_ledger where id=p_ledger;
+ if not found then return; end if;
+ delete from team_points where ledger_id=p_ledger;
+ update team_ledger set charge_member_id=p_member where id=p_ledger;
+ if p_member is null then
+  if p_request is not null then raise exception 'チャージしたメンバーを選んでください'; end if;
+  return;
+ end if;
+ if l.squad<>'main' then raise exception 'チャージはメイン会計に記録してください'; end if;
+ select * into target from members where id=p_member and squad='main' and active;
+ if not found then raise exception 'チャージしたメンバーはメインの有効なメンバーを選んでください'; end if;
+ amt:=coalesce(l.income,l.fee*l.people);
+ if amt<cfg.charge_unit or amt%cfg.charge_unit<>0 or l.expense<>0 then
+  raise exception 'チャージの行は、収入を%円単位にして支出を0にしてください',cfg.charge_unit;
+ end if;
+ if p_request is not null then
+  select * into q from team_point_requests where id=p_request and status='pending' for update;
+  if not found or q.member_id<>p_member then raise exception '対象の追加申請が見つかりません。更新してください'; end if;
+  update team_point_requests set status='approved',resolved_at=now(),resolved_by=p_actor where id=q.id;
+ end if;
+ if l.planned then return; end if;
+ insert into team_points(member_id,delta,amount,reason,request_id,ledger_id,created_by)
+  values(p_member,amt/cfg.charge_unit*cfg.charge_points,amt,'チャージ（会計）',q.id,p_ledger,p_actor);
+end $$;
+revoke all on function app_ledger_charge_sync(uuid,uuid,uuid,text) from public,anon,authenticated;
+
+-- 会計の概要（全員に公開）。明細は管理者だけ。
+-- 口座残高 = 開始残高＋確定済みの収入−支出。チャージ残高 = 有効メンバーの未使用ポイントの返金相当額
+-- （残数×1回の参加費。ちょうど1回分のチャージ数ならチャージ額）。余剰金 = 口座残高−チャージ残高。
+create or replace function app_finance_summary() returns jsonb
+language plpgsql stable security definer set search_path=public,pg_temp as $$
+declare cfg team_config; account bigint; charge bigint;
+begin
+ select * into cfg from team_config where id=1;
+ select cfg.main_opening+coalesce(sum(coalesce(income,fee*people)-expense),0) into account from team_ledger where squad='main' and not planned;
+ select coalesce(sum(case when r=cfg.charge_points then cfg.charge_unit when r>0 then r*cfg.main_fee else 0 end),0) into charge
+  from (select (app_member_points(id)->>'remaining')::int r from members where squad='main' and active) x;
+ return jsonb_build_object('account_balance',account,'charge_balance',charge,'surplus',account-charge,'point_value',cfg.main_fee);
+end $$;
+revoke all on function app_finance_summary() from public,anon,authenticated;
 
 -- ポイント操作の入口。request/cancel_request は本人（取り消しは管理者も）、charge/adjust は管理者だけ。
 create or replace function team_points(p_key text,p_admin boolean,p_version bigint,p_actor text,p_action text,p_data jsonb)
@@ -128,6 +181,7 @@ begin
   if coalesce((p_data->>'ledger')::boolean,false) then
    insert into team_ledger(squad,entry_date,description,income,note)
     values('main',jst_today,'チャージ（'||target.name||'）',amt,pts||'ポイント付与') returning id into lid;
+   update team_ledger set charge_member_id=mid where id=lid;
   end if;
   insert into team_points(member_id,delta,amount,reason,request_id,ledger_id,created_by) values(mid,pts,amt,'チャージ',q.id,lid,actor_name);
   insert into team_history(actor,action,entity,after_value,squad)
