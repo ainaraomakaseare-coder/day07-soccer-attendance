@@ -20,6 +20,12 @@
     cars:event.asks_car?yes.filter(a=>a.car==='yes').length+guests.filter(g=>g.car).length:0,player:byRole('player'),staff:byRole('staff'),ac:byRole('ac'),memberGuest:byRole('guest')};
   },
   annual(data,member,year){const [start,end]=model.yearRange(year,data.year_start_month);return data.answers.filter(a=>a.member_id===member.id&&a.status==='yes'&&data.events.some(e=>e.id===a.event_id&&e.squad===member.squad&&e.event_date>=start&&e.event_date<end&&e.event_date<=today())).length;},
+  // 助っ人は名簿に紐付かないため名前で集計する。空白の違いだけは同じ人として扱う。
+  guestAnnual(data,squad,year){const [start,end]=model.yearRange(year,data.year_start_month);const counts=new Map();
+   data.guests.filter(g=>g.status==='yes'&&data.events.some(e=>e.id===g.event_id&&e.squad===squad&&e.event_date>=start&&e.event_date<end&&e.event_date<=today())).forEach(g=>{
+    const name=String(g.name||'').normalize('NFKC').replace(/\s+/g,' ').trim();if(!name)return;const key=name.replace(/ /g,'');
+    const row=counts.get(key)||{name,count:0};row.count++;counts.set(key,row);});
+   return [...counts.values()].sort((a,b)=>b.count-a.count||a.name.localeCompare(b.name,'ja'));},
   ledger(data,squad){let balance=Number(data[squad+'_opening']);let projected=balance;let income=0,expense=0;
    const rows=data.ledger.filter(l=>l.squad===squad).slice().sort((a,b)=>a.entry_date.localeCompare(b.entry_date)||a.created_at.localeCompare(b.created_at)||a.id.localeCompare(b.id)).map(l=>{
     const received=l.income===null?l.fee*l.people:l.income;const net=received-l.expense;projected+=net;

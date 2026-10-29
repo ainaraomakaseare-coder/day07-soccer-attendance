@@ -242,6 +242,12 @@ test('annual count: fiscal year boundary, only past/current days, no other-membe
  const d={year_start_month:4,events:[{id:'a',squad:'main',event_date:'2025-03-31'},{id:'b',squad:'main',event_date:'2025-04-01'},{id:'c',squad:'main',event_date:'2099-05-01'}],answers:[{event_id:'a',member_id:'m',status:'yes'},{event_id:'b',member_id:'m',status:'yes'},{event_id:'b',member_id:'n',status:'yes'},{event_id:'c',member_id:'m',status:'yes'}]};
  assert.equal(M.annual(d,{id:'m',squad:'main'},2025),1);assert.equal(M.annual(d,{id:'m',squad:'main'},2099),0);assert.equal(M.yearFor('2026-03-31',4),2025);
 });
+test('guest annual count: groups by name per squad and fiscal year, attended past days only',()=>{
+ const d={year_start_month:4,events:[{id:'a',squad:'main',event_date:'2025-03-31'},{id:'b',squad:'main',event_date:'2025-04-01'},{id:'c',squad:'main',event_date:'2025-05-01'},{id:'j',squad:'junior',event_date:'2025-05-01'},{id:'f',squad:'main',event_date:'2099-05-01'}],
+  guests:[{event_id:'a',name:'山田 太郎',status:'yes'},{event_id:'b',name:'山田 太郎',status:'yes'},{event_id:'c',name:'山田　太郎 ',status:'yes'},{event_id:'c',name:'鈴木',status:'no'},{event_id:'c',name:'佐藤',status:'yes'},{event_id:'j',name:'佐藤',status:'yes'},{event_id:'f',name:'佐藤',status:'yes'},{event_id:'b',name:'山田太郎',status:'yes'}]};
+ assert.deepEqual(M.guestAnnual(d,'main',2025),[{name:'山田 太郎',count:3},{name:'佐藤',count:1}]);
+ assert.deepEqual(M.guestAnnual(d,'junior',2025),[{name:'佐藤',count:1}]);assert.deepEqual(M.guestAnnual(d,'main',2099),[]);
+});
 test('participation points: charge, request, consumption, zero-balance block and privacy',async(t)=>{
  const db=await createDB();t.after(()=>db.close());
  const c=(await db.query('select * from team_config')).rows[0];
