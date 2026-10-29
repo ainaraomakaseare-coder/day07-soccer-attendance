@@ -26,6 +26,8 @@ const publicFiles=['team.html','team.css','js/export-template.js','js/export.js'
  {const c=(await db.query('select data_version from team_config')).rows[0];await rpc(db,'team_points',{p_key:admin,p_admin:true,p_version:c.data_version,p_actor:'デモ担当',p_action:'charge',p_data:{member_id:m.id,amount:2000}});}
  await write('answer',{event_id:e.id,member_id:m.id,status:'yes',car:'yes',vehicle_plate:'横浜 300 あ 1234'});
  await write('guest',{event_id:e.id,name:'体験ゲスト',invited_by:'テスト選手B',status:'yes',car:false});
+ {const past=h.events.find(e=>e.event_date<day(0)&&e.squad==='main');for(const name of ['体験ゲスト','見学 太郎'])await write('guest',{event_id:past.id,name,invited_by:'テスト選手B',status:'yes',car:false});}
+ {const b=h.members.find(x=>x.squad==='main'&&x.id!==m.id);const c=(await db.query('select data_version from team_config')).rows[0];await rpc(db,'team_points',{p_key:admin,p_admin:true,p_version:c.data_version,p_actor:'デモ担当',p_action:'charge',p_data:{member_id:b.id,amount:2000}});await write('answer',{event_id:e.id,member_id:b.id,status:'yes',car:'no',uses_bicycle:true,vehicle_plate:'品川 い 5678'});}
  await write('notice',{squad:'main',body:'飲み物を忘れずに。遅刻の連絡は各予定の回答欄に記入できます。',notice_date:day(0)});
  await write('ledger',{squad:'main',entry_date:day(-8),description:'体育館利用',expense:2600,fee:300,people:20});
  await write('bib',{number:'01',member_id:j.id,state:'loaned',loan_date:day(-3)});
